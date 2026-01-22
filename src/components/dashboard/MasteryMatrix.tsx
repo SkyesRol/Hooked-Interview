@@ -10,7 +10,7 @@ export default function MasteryMatrix({
   onStartInterview: (tech: TechStack) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid h-full w-full auto-rows-fr grid-cols-1 gap-4 place-items-stretch sm:grid-cols-2 lg:grid-cols-3">
       {TECH_STACKS.map((tech) => (
         <TechPanel
           key={tech.slug}
@@ -23,4 +23,3 @@ export default function MasteryMatrix({
     </div>
   );
 }
-

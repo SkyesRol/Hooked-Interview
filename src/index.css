@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Architects+Daughter&family=JetBrains+Mono:wght@400;600&family=Montserrat:wght@300;400;500;600&family=Patrick+Hand&family=Playfair+Display:ital,wght@0,700;1,700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,4 +13,27 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .border-sketch {
+    border: 1px solid #d1d5db;
+    border-radius: 4px 15px 3px 18px / 18px 3px 15px 4px;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: all 0.35s ease;
+  }
+
+  .border-sketch:hover {
+    border-color: #b89c66;
+    box-shadow: 6px 6px 12px rgba(184, 156, 102, 0.12);
+  }
+
+  .paper-surface {
+    background-color: #f9f7f1;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+      radial-gradient(rgba(44, 62, 80, 0.08) 0.6px, transparent 0.6px);
+    background-size: 15px 15px, 15px 15px, 6px 6px;
+    background-position: 0 0, 0 0, 0 0;
+  }
 }

@@ -199,7 +199,7 @@ export default function Interview() {
       const q: QuestionData = {
         id: picked.id,
         content: picked.content,
-        type: "Local",
+        type: picked.questionType ?? "Code",
         difficulty: picked.difficulty,
         source: "Local",
       };

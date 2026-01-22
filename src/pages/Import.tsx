@@ -65,6 +65,7 @@ export default function Import() {
             contentHash,
             topic: s.payload.topic,
             content: normalizedContent,
+            questionType: s.payload.questionType,
             difficulty: s.payload.difficulty,
             source: "user-import",
             tags: s.payload.tags.length ? s.payload.tags : undefined,
@@ -155,4 +156,3 @@ export default function Import() {
     </div>
   );
 }
-

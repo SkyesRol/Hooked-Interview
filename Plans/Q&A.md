@@ -74,12 +74,16 @@ interface CurrentSessionState {
     *   修饰: 左侧添加 4px 彩色边框 (根据 Difficulty: Green/Yellow/Red)。
 
 #### B. Robust Editor (`components/interview/Editor/index.tsx`)
-*   **Requirement**: 解决 Monaco Editor 包体积大且不适配移动端的问题。
+*   **Requirement**: 解决 Monaco Editor 包体积大且不适配移动端的问题，同时提供极速的输入体验和统一的交互。
 *   **Logic**:
-    1.  检测 `UserAgent` 或屏幕宽度 (`useMediaQuery`).
-    2.  **Mobile**: 渲染 `<SimpleEditor />` (封装的 `textarea` + 基本语法高亮组件，如 `react-simple-code-editor`).
-    3.  **Desktop**: 使用 `React.lazy` 异步加载 `<MonacoWrapper />`。
-    *   *Loading State*: 在 Monaco 加载完成前，显示一个带 Spinner 的 Skeleton 占位符。
+    1.  **Mode Switching**:
+        *   不再根据题目类型区分编辑器。
+        *   **Mobile**: 强制渲染 `<SimpleEditor />`。
+        *   **Desktop**: 默认渲染 `<SimpleEditor />` (文本模式)。顶部提供 Tab 切换至 `<MonacoWrapper />` (专业模式)。用户可根据需要（写代码或写文本）自由选择。
+    2.  **Performance**: Monaco 使用 `React.lazy` 异步加载，仅在用户主动切换时触发加载。
+    3.  **Components**:
+        *   `<SimpleEditor />`: 轻量级 Textarea，使用 `font-mono`，适用于代码和文本。
+        *   `<MonacoWrapper />`: 完整的 IDE 体验。
 
 #### C. AnalysisReport (`components/interview/AnalysisReport.tsx`)
 这是“结果展示”的核心。

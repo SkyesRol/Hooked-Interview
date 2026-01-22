@@ -2,11 +2,14 @@ import Dexie, { type Table } from "dexie";
 
 export type Difficulty = "Simple" | "Medium" | "Hard";
 
+export type QuestionType = "Code" | "Theory" | "SystemDesign";
+
 export type QuestionItem = {
   id: string;
   contentHash: string;
   topic: string;
   content: string;
+  questionType?: QuestionType;
   difficulty: Difficulty;
   source: "user-import" | "ai-saved";
   tags?: string[];

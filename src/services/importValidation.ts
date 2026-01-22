@@ -1,7 +1,8 @@
-import type { Difficulty } from "@/lib/db";
+import type { Difficulty, QuestionType } from "@/lib/db";
 import type { ExistingQuestion, RawInput, StagedItem } from "@/components/import/types";
 
 const ALLOWED_DIFFICULTIES = ["Simple", "Medium", "Hard"] as const;
+const ALLOWED_QUESTION_TYPES = ["Code", "Theory", "SystemDesign"] as const;
 
 function normalizeText(value: string) {
   return value.trim().replace(/\r\n/g, "\n");
@@ -21,6 +22,13 @@ function normalizeTags(tags: string[] | undefined) {
 function coerceDifficulty(raw: string): Difficulty | null {
   const trimmed = raw.trim();
   if ((ALLOWED_DIFFICULTIES as readonly string[]).includes(trimmed)) return trimmed as Difficulty;
+  return null;
+}
+
+function coerceQuestionType(raw: unknown): QuestionType | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if ((ALLOWED_QUESTION_TYPES as readonly string[]).includes(trimmed)) return trimmed as QuestionType;
   return null;
 }
 
@@ -45,6 +53,7 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
     const topic = normalizeText(raw.topic);
     const content = normalizeText(raw.content);
     const difficulty = coerceDifficulty(raw.difficulty);
+    const questionType = coerceQuestionType(raw.questionType) ?? "Code";
     const tags = normalizeTags(raw.tags);
 
     if (!topic) {
@@ -53,7 +62,7 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
         status: "error",
         errorMsg: "缺少 topic",
         source: raw.source,
-        payload: { topic: "", difficulty: "Medium", content, tags },
+        payload: { topic: "", difficulty: "Medium", questionType, content, tags },
       });
       continue;
     }
@@ -64,7 +73,7 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
         status: "error",
         errorMsg: "缺少 content",
         source: raw.source,
-        payload: { topic, difficulty: "Medium", content: "", tags },
+        payload: { topic, difficulty: "Medium", questionType, content: "", tags },
       });
       continue;
     }
@@ -75,7 +84,7 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
         status: "error",
         errorMsg: `difficulty 仅支持 ${ALLOWED_DIFFICULTIES.join(" / ")}`,
         source: raw.source,
-        payload: { topic, difficulty: "Medium", content, tags },
+        payload: { topic, difficulty: "Medium", questionType, content, tags },
       });
       continue;
     }
@@ -86,7 +95,7 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
         _tempId: crypto.randomUUID(),
         status: "duplicate",
         source: raw.source,
-        payload: { topic, difficulty, content, tags },
+        payload: { topic, difficulty, questionType, content, tags },
       });
       continue;
     }
@@ -96,10 +105,9 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
       _tempId: crypto.randomUUID(),
       status: "valid",
       source: raw.source,
-      payload: { topic, difficulty, content, tags },
+      payload: { topic, difficulty, questionType, content, tags },
     });
   }
 
   return results;
 }
-

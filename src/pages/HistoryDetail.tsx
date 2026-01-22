@@ -155,7 +155,10 @@ export default function HistoryDetail() {
             <span>Language: TypeScript</span>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden p-4">
-            <InterviewEditor value={record.userAnswer} readOnly />
+            <InterviewEditor
+              value={record.userAnswer}
+              readOnly
+            />
           </div>
         </div>
       }

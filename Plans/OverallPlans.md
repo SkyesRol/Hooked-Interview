@@ -43,7 +43,7 @@
 *   **UI 布局**：
     *   **Top**: 题目展示区 (Markdown 渲染)。
     *   **Center**: 代码编辑器。
-        *   *> Tech Spec*: 使用 `Monaco Editor`，但需配置 **Lazy Loading** (异步加载) 以优化首屏速度。检测到移动端时自动降级为简单 Textarea。
+        *   *> Tech Spec*: 采用 **双模式编辑器 (Dual Mode Editor)**。统一提供 Toggle 按钮允许用户在轻量级 `Textarea` (SimpleEditor) 和 `Monaco Editor` 之间切换。默认使用 `Textarea` 以确保极速响应和统一体验。移动端强制降级为 Textarea。
     *   **Bottom**: "提交回答" 按钮。
 *   **交互逻辑**:
     1.  **出题阶段**:
@@ -227,14 +227,22 @@ src/
 │   │   ├── MasteryMatrix.tsx
 │   │   ├── StatsOverview.tsx
 │   │   └── TechPanel.tsx
-│   ├── history/             # 历史回顾（已实现）
+│   ├── history/             # 历史回顾
 │   │   └── HistoryCard.tsx
 │   ├── interview/           # 面试核心页（出题/作答/评分/展示）
-│   │   ├── Editor/          # 编辑器封装（Monaco Lazy + Mobile Textarea），支持 readOnly
+│   │   ├── Editor/          # 双模式编辑器封装（Textarea + Monaco），支持 readOnly
+│   │   │   ├── index.tsx
+│   │   │   ├── MonacoWrapper.tsx
+│   │   │   └── SimpleEditor.tsx
 │   │   ├── AnalysisReport.tsx
 │   │   ├── MainLayout.tsx   # 可复用布局（支持自定义 backTo/title）
 │   │   ├── QuestionCard.tsx
 │   │   └── SourceSelectorDialog.tsx
+│   ├── import/              # 智能导入题库模块
+│   │   ├── JsonPaste.tsx
+│   │   ├── ManualEntryForm.tsx
+│   │   ├── StagingList.tsx
+│   │   └── types.ts
 │   ├── shared/
 │   │   ├── MarkdownRenderer.tsx
 │   │   └── ProtectedRoute.tsx
@@ -249,12 +257,15 @@ src/
 │   ├── ai/                  # AI 逻辑拆分（client/prompts/parser...）
 │   ├── db.ts                # Dexie(IndexedDB) Schema 与类型定义
 │   └── utils.ts
+├── services/
+│   └── importValidation.ts  # 智能导入的校验与去重逻辑
 ├── pages/
 │   ├── Home.tsx
 │   ├── Interview.tsx
 │   ├── Settings.tsx
 │   ├── History.tsx          # /history
-│   └── HistoryDetail.tsx    # /history/:id
+│   ├── HistoryDetail.tsx    # /history/:id
+│   └── Import.tsx           # 智能导入页
 ├── store/
 │   ├── useQuestionStore.ts
 │   ├── useRecordStore.ts
@@ -295,21 +306,4 @@ src/
 *   **面试页**: 将 `useStream` (若有) 改为 `useAsync`，配合 Loading 状态，因为我们需要等待完整的 JSON 返回才能渲染图表。
 *   **Dashboard**: 读取 IndexedDB 中的所有 records，提取所有的 `techTags`，计算每个 Tag 的平均分，传递给 Recharts 渲染。
 
-## 7. 项目目录结构（剩余部分） (Directory Structure)
-
-~~~text
-src/
-├── components/
-│   ├── import/              # 智能导入页（计划：尚未实现）
-│   ├── shared/              # 计划：补齐 ThemeToggle、Toast hooks 等
-│   └── ui/                  # 计划：逐步补齐 dialog/tabs/select 等
-├── hooks/
-│   ├── use-live-query.ts    # 计划：Dexie live query（当前用 store 刷新替代）
-│   └── use-toast.ts         # 计划：统一 toast hook
-├── pages/
-│   ├── Import.tsx           # 计划
-│   └── NotFound.tsx         # 计划
-└── router/
-    └── index.tsx            # 计划：从 App.tsx 抽离路由配置
-~~~
 

@@ -32,6 +32,7 @@ export default function StagingList({
               <div className="flex flex-wrap items-center gap-2">
                 {statusBadge(item)}
                 <Badge variant="secondary">{item.payload.difficulty}</Badge>
+                <Badge variant="outline">{item.payload.questionType}</Badge>
                 <Badge variant="outline">{item.source === "manual" ? "Manual" : "JSON"}</Badge>
                 {item.payload.tags.length ? <Badge variant="secondary">{item.payload.tags.join(", ")}</Badge> : null}
               </div>
@@ -60,4 +61,3 @@ export default function StagingList({
     </div>
   );
 }
-

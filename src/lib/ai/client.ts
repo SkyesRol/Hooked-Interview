@@ -5,12 +5,6 @@ import { cleanAndParseJSON } from "./parser";
 import type { EvaluateAnswerResponse, GenerateQuestionResponse } from "./prompts";
 import { buildEvaluateAnswerMessages, buildGenerateQuestionMessages } from "./prompts";
 
-function getThinkingBody(model: string) {
-    const lower = model.toLowerCase();
-    if (!lower.includes("gemini")) return {};
-    return { thinking_budget: 1024 };
-}
-
 function getClient() {
     const { apiKey, baseUrl } = useSettingsStore.getState();
     if (!apiKey) throw new Error("未配置 API Key，请先在 Settings 页面完成配置");
@@ -21,7 +15,7 @@ function getClient() {
     return new OpenAI({ apiKey, baseURL: normalizedBaseUrl, dangerouslyAllowBrowser: true });
 }
 
-function formatClientError(err: unknown) {
+export function formatClientError(err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     if (/You need to enable JavaScript/i.test(message) || /Unexpected token\s*</i.test(message)) {
         return "API 返回了 HTML（通常是 Base URL 配错，指向了网页而不是 OpenAI 兼容 API）。请检查 Base URL 是否为 https://.../v1";
@@ -49,7 +43,6 @@ export async function generateQuestion(topic: string, opts?: { timeoutMs?: numbe
                 messages: buildGenerateQuestionMessages(topic),
                 temperature: 0.7,
                 max_tokens: 800,
-                ...(getThinkingBody(model) as Record<string, unknown>),
             },
             { signal: controller.signal },
         );
@@ -77,7 +70,6 @@ export async function evaluateAnswer(
                 messages: buildEvaluateAnswerMessages(args),
                 temperature: 0.2,
                 max_tokens: 1200,
-                ...(getThinkingBody(model) as Record<string, unknown>),
             },
             { signal: controller.signal },
         );

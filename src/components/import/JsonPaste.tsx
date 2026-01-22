@@ -73,6 +73,12 @@ export default function JsonPaste({ onStage }: { onStage: (rawItems: RawInput[])
               return {
                 topic: typeof obj.topic === "string" ? obj.topic : "",
                 difficulty: typeof obj.difficulty === "string" ? obj.difficulty : "",
+                questionType:
+                  typeof obj.type === "string"
+                    ? obj.type
+                    : typeof obj.questionType === "string"
+                      ? obj.questionType
+                      : "",
                 content,
                 tags: parseTags(obj.tags),
                 source: "json",
@@ -92,4 +98,3 @@ export default function JsonPaste({ onStage }: { onStage: (rawItems: RawInput[])
     </div>
   );
 }
-

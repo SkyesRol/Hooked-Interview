@@ -7,6 +7,7 @@ import type { RawInput } from "@/components/import/types";
 import { cn } from "@/lib/utils";
 
 const DIFFICULTY_OPTIONS = ["Simple", "Medium", "Hard"] as const;
+const QUESTION_TYPE_OPTIONS = ["Code", "Theory", "SystemDesign"] as const;
 
 function parseTags(raw: string) {
   return raw
@@ -19,12 +20,13 @@ export default function ManualEntryForm({ onStage }: { onStage: (rawItems: RawIn
   const defaultTopic = useMemo(() => (TOPICS[0] ? String(TOPICS[0]) : ""), []);
   const [topic, setTopic] = useState(defaultTopic);
   const [difficulty, setDifficulty] = useState<(typeof DIFFICULTY_OPTIONS)[number]>("Medium");
+  const [questionType, setQuestionType] = useState<(typeof QUESTION_TYPE_OPTIONS)[number]>("Code");
   const [content, setContent] = useState("");
   const [tags, setTags] = useState("");
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="import-topic">Topic</Label>
           <select
@@ -62,6 +64,25 @@ export default function ManualEntryForm({ onStage }: { onStage: (rawItems: RawIn
             ))}
           </select>
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="import-type">Type</Label>
+          <select
+            id="import-type"
+            value={questionType}
+            onChange={(e) => setQuestionType(e.target.value as (typeof QUESTION_TYPE_OPTIONS)[number])}
+            className={cn(
+              "flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",
+            )}
+          >
+            {QUESTION_TYPE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -94,7 +115,7 @@ export default function ManualEntryForm({ onStage }: { onStage: (rawItems: RawIn
           type="button"
           onClick={async () => {
             await onStage([
-              { topic, difficulty, content, tags: parseTags(tags), source: "manual" },
+              { topic, difficulty, questionType, content, tags: parseTags(tags), source: "manual" },
             ]);
             setContent("");
             setTags("");
@@ -107,4 +128,3 @@ export default function ManualEntryForm({ onStage }: { onStage: (rawItems: RawIn
     </div>
   );
 }
-

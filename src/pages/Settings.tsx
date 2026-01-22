@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
 import OpenAI from "openai";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -18,15 +18,17 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatClientError } from "@/lib/ai/client";
 import { cn } from "@/lib/utils";
 import { isSameOriginAsApp, normalizeBaseUrl } from "@/lib/ai/normalizeBaseUrl";
 import { useSettingsStore } from "@/store/useSettingsStore";
 
-const settingsSchema = z.object({
-  apiKey: z.string().min(1, "请输入 API Key"),
-  baseUrl: z.string().url("请输入有效的 URL (包含 http/https)"),
-  model: z.string().min(1, "请输入模型名称"),
-});
+const settingsSchema = z
+  .object({
+    apiKey: z.string().min(1, "请输入 API Key"),
+    baseUrl: z.string().url("请输入有效的 URL (包含 http/https)"),
+    model: z.string().min(1, "请输入模型名称"),
+  });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
@@ -49,6 +51,10 @@ export default function Settings() {
     mode: "onBlur",
   });
 
+  useEffect(() => {
+    form.reset({ apiKey, baseUrl, model });
+  }, [apiKey, baseUrl, model, form]);
+
   const handleTestConnection = async () => {
     const isValid = await form.trigger();
     if (!isValid) return;
@@ -68,22 +74,21 @@ export default function Settings() {
         dangerouslyAllowBrowser: true,
       });
 
-      const lowerModel = values.model.toLowerCase();
+      const payloadForLog = {
+        model: values.model,
+        messages: [{ role: "user", content: "hi" }],
+      };
+
+      console.log("[Test Connection] chat.completions payload:", payloadForLog);
+
       await client.chat.completions.create({
         model: values.model,
-        messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-        ...(lowerModel.includes("gemini") ? ({ thinking_budget: 1024 } as Record<string, unknown>) : {}),
+        messages: [{ role: "user", content: "hi" }],
       });
 
       toast.success("连接成功，模型可用");
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (/You need to enable JavaScript/i.test(message) || /Unexpected token\s*</i.test(message)) {
-        toast.error("连接失败: API 返回了 HTML（Base URL 可能配错）。请检查 Base URL 是否为 https://.../v1");
-      } else {
-        toast.error(`连接失败: ${message}`);
-      }
+      toast.error(`连接失败: ${formatClientError(err)}`);
       console.error(err);
     } finally {
       setIsTesting(false);

@@ -1,10 +1,11 @@
-import type { Difficulty } from "@/lib/db";
+import type { Difficulty, QuestionType } from "@/lib/db";
 
 export type ImportSource = "manual" | "json";
 
 export type RawInput = {
   topic: string;
   difficulty: string;
+  questionType?: string;
   content: string;
   tags?: string[];
   source: ImportSource;
@@ -23,8 +24,8 @@ export interface StagedItem {
   payload: {
     topic: string;
     difficulty: Difficulty;
+    questionType: QuestionType;
     content: string;
     tags: string[];
   };
 }
-
