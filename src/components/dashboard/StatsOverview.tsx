@@ -4,6 +4,65 @@ import { cn } from "@/lib/utils";
 
 export type RadarDatum = { subject: string; score: number; fullMark: number };
 
+function wrapText(text: string, maxCharsPerLine = 10): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = words[0] || "";
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    if (currentLine.length + 1 + word.length <= maxCharsPerLine) {
+      currentLine += " " + word;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
+function CustomTick({
+  payload,
+  x,
+  y,
+  textAnchor,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  verticalAnchor,
+  ...props
+}: {
+  payload?: { value: string };
+  x?: number;
+  y?: number;
+  textAnchor?: "start" | "middle" | "end" | "inherit";
+  verticalAnchor?: string;
+  [key: string]: unknown;
+}) {
+  const val = payload?.value || "";
+  const lines = wrapText(val);
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor={textAnchor}
+      fill="#2C3E50"
+      fontSize={11}
+      fontFamily="Architects Daughter"
+      {...props}
+    >
+      {lines.map((line, index) => (
+        <tspan
+          x={x}
+          dy={index === 0 ? (lines.length > 1 ? "-0.4em" : "0.3em") : "1.2em"}
+          key={index}
+        >
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 export default function StatsOverview({
   radarData,
   totalQuestions,
@@ -25,13 +84,18 @@ export default function StatsOverview({
       </CardHeader>
 
       <CardContent className="grid gap-6">
-        <div className="h-64 w-full rounded-xl border border-slate-200 bg-white p-3">
+        <div className="h-[360px] w-full rounded-xl border border-slate-200 bg-white">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={radarData}>
+            <RadarChart
+              data={radarData}
+              outerRadius="100%"
+              margin={{ top: 30, right: 60, bottom: 30, left: 60 }}
+            >
               <PolarGrid stroke="rgba(44, 62, 80, 0.35)" strokeDasharray="4 6" />
               <PolarAngleAxis
                 dataKey="subject"
-                tick={{ fill: "#2C3E50", fontSize: 12, fontFamily: "Architects Daughter" }}
+                tickLine={false}
+                tick={<CustomTick />}
               />
               <PolarRadiusAxis
                 angle={30}

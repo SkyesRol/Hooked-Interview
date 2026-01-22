@@ -24,10 +24,72 @@ export default function Home() {
   const apiKey = useSettingsStore((s) => s.apiKey);
   const loadRecords = useRecordStore((s) => s.loadRecords);
   const isLoading = useRecordStore((s) => s.isLoading);
-  const getTopicStats = useRecordStore((s) => s.getTopicStats);
-  const getRadarData = useRecordStore((s) => s.getRadarData);
-  const getGlobalStats = useRecordStore((s) => s.getGlobalStats);
+  const records = useRecordStore((s) => s.records);
   const hasApiKey = Boolean(apiKey);
+
+  const topicStatsByLabel = useMemo(() => {
+    const map = new Map<string, { count: number; sumScore: number; maxScore: number; lastTimestamp: number | null }>();
+    for (const r of records) {
+      const topic = typeof r.topic === "string" ? r.topic : "";
+      if (!topic) continue;
+      const score = typeof r.evaluation?.score === "number" && Number.isFinite(r.evaluation.score) ? r.evaluation.score : 0;
+      const existing = map.get(topic) ?? { count: 0, sumScore: 0, maxScore: 0, lastTimestamp: null };
+      const nextCount = existing.count + 1;
+      const nextSum = existing.sumScore + score;
+      const nextMax = score > existing.maxScore ? score : existing.maxScore;
+      const nextLast = typeof r.timestamp === "number" && Number.isFinite(r.timestamp) ? Math.max(existing.lastTimestamp ?? 0, r.timestamp) : existing.lastTimestamp;
+      map.set(topic, { count: nextCount, sumScore: nextSum, maxScore: nextMax, lastTimestamp: nextLast });
+    }
+    return map;
+  }, [records]);
+
+  const globalStats = useMemo(() => {
+    const totalQuestions = records.length;
+    if (totalQuestions === 0) return { totalQuestions: 0, globalAverage: 0 };
+    const sum = records.reduce((acc, r) => {
+      const score = typeof r.evaluation?.score === "number" && Number.isFinite(r.evaluation.score) ? r.evaluation.score : 0;
+      return acc + score;
+    }, 0);
+    return { totalQuestions, globalAverage: Math.round(sum / totalQuestions) };
+  }, [records]);
+
+  const radarData = useMemo(() => {
+    const byTag = new Map<string, { sum: number; count: number }>();
+    for (const r of records) {
+      const tags = Array.isArray(r.evaluation?.techTags) ? r.evaluation.techTags : [];
+      const score = typeof r.evaluation?.score === "number" && Number.isFinite(r.evaluation.score) ? r.evaluation.score : 0;
+      for (const rawTag of tags) {
+        const tag = typeof rawTag === "string" ? rawTag.trim() : "";
+        if (!tag) continue;
+        const prev = byTag.get(tag);
+        if (prev) byTag.set(tag, { sum: prev.sum + score, count: prev.count + 1 });
+        else byTag.set(tag, { sum: score, count: 1 });
+      }
+    }
+
+    const tagEntries = [...byTag.entries()]
+      .map(([tag, v]) => ({ tag, avgScore: Math.round(v.sum / v.count), count: v.count }))
+      .sort((a, b) => (b.count !== a.count ? b.count - a.count : b.avgScore - a.avgScore))
+      .slice(0, 8);
+
+    if (tagEntries.length > 0) return tagEntries.map((t) => ({ subject: t.tag, score: t.avgScore, fullMark: 100 }));
+
+    const subjects = ["Vue", "React", "TypeScript", "JavaScript", "CSS", "Node.js"];
+    return subjects.map((subject) => {
+      const s = topicStatsByLabel.get(subject);
+      const avgScore = s && s.count > 0 ? Math.round(s.sumScore / s.count) : 0;
+      return { subject, score: avgScore, fullMark: 100 };
+    });
+  }, [records, topicStatsByLabel]);
+
+  const topicSummary = useMemo(() => {
+    let active = 0;
+    TECH_STACKS.forEach((tech) => {
+      const s = topicStatsByLabel.get(tech.label);
+      if (s && s.count > 0) active += 1;
+    });
+    return { active, total: TECH_STACKS.length };
+  }, [topicStatsByLabel]);
 
   useEffect(() => {
     if (apiKey) return;
@@ -38,23 +100,14 @@ export default function Home() {
     void loadRecords();
   }, [loadRecords]);
 
-  const radarData = useMemo(() => getRadarData(), [getRadarData]);
-  const globalStats = useMemo(() => getGlobalStats(), [getGlobalStats]);
-  const topicSummary = useMemo(() => {
-    let active = 0;
-    TECH_STACKS.forEach((tech) => {
-      const stats = getTopicStats(tech.label);
-      if (stats.count > 0) active += 1;
-    });
-    return { active, total: TECH_STACKS.length };
-  }, [getTopicStats]);
-
   const getStatsForMatrix = useCallback(
     (topicLabel: string) => {
-      const s = getTopicStats(topicLabel);
-      return { count: s.count, avgScore: s.avgScore, lastActive: formatLastActive(s.lastTimestamp) };
+      const s = topicStatsByLabel.get(topicLabel);
+      const count = s?.count ?? 0;
+      const avgScore = s && s.count > 0 ? Math.round(s.sumScore / s.count) : 0;
+      return { count, avgScore, lastActive: formatLastActive(s?.lastTimestamp ?? null) };
     },
-    [getTopicStats],
+    [topicStatsByLabel],
   );
 
   const handleStartInterview = useCallback(
@@ -71,7 +124,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 pb-3 pt-4">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-6 pb-3 pt-4">
         <nav className="flex items-center justify-between py-4">
           <div className="flex items-center gap-8">
             <button
@@ -134,7 +187,7 @@ export default function Home() {
         </div>
 
         <main className="grid flex-1 min-h-0 grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="flex flex-col gap-4 lg:col-span-3">
+          <div className="flex flex-col gap-4 lg:col-span-2">
             <div className="border-sketch bg-white p-5 transition-all duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:-translate-y-0.5">
               <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ink-light">
                 快速开始
@@ -191,21 +244,76 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 lg:col-span-3">
+          <div className="flex flex-col gap-4 lg:col-span-4">
             <StatsOverview
               radarData={radarData}
               totalQuestions={globalStats.totalQuestions}
               globalAverage={globalStats.globalAverage}
               isLoading={isLoading}
             />
-            <div className="border-sketch relative flex flex-1 flex-col justify-center overflow-hidden bg-ink p-5 text-white pb-8">
-              <PenTool className="absolute bottom-4 right-4 h-12 w-12 text-white/10" aria-hidden="true" />
-              <p className="mt-2 text-[15px] font-light italic leading-relaxed text-gray-300">
-                我知道你想死，但是你先别死，先把这道题做了。
-                <div className="mt-2 text-[13px] font-light italic leading-relaxed text-gray-300">
-                  —— Love, from the Author 😘
+            <div className="border-sketch relative flex flex-1 flex-col overflow-hidden bg-ink p-6 text-white shadow-sketch">
+              <div className="mb-4 flex items-center gap-2 border-b border-white/10 pb-2">
+                <div className="flex gap-1.5">
+                  <div className="h-2.5 w-2.5 rounded-full bg-rose-500/80" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-amber-500/80" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
                 </div>
-              </p>
+                <span className="ml-2 font-code text-[10px] text-white/40">~/mindset.js</span>
+              </div>
+
+              <div className="flex-1 font-code text-xs leading-relaxed text-gray-300">
+                <div className="flex">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">1</span>
+                  <span className="text-pink-400">const</span>
+                  <span className="ml-2 text-blue-300">currentMood</span>
+                  <span className="ml-2 text-white">=</span>
+                  <span className="ml-2 text-amber-300">"Panic"</span>;
+                </div>
+
+                <div className="flex">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">2</span>
+                </div>
+
+                <div className="flex">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">3</span>
+                  <span className="text-gray-500">// 我知道你想死，但是你先别死</span>
+                </div>
+
+                <div className="flex">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">4</span>
+                  <span className="text-pink-400">if</span>
+                  <span className="ml-2 text-white">(</span>
+                  <span className="text-blue-300">currentMood</span>
+                  <span className="ml-2 text-white">===</span>
+                  <span className="ml-2 text-amber-300">"Panic"</span>
+                  <span className="text-white">)</span>
+                  <span className="ml-2 text-white">{"{"}</span>
+                </div>
+
+                <div className="flex">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">5</span>
+                  <span className="ml-4 text-purple-400">keepCalm</span>
+                  <span className="text-white">();</span>
+                </div>
+
+                <div className="flex">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">6</span>
+                  <span className="ml-4 text-purple-400">solveThisProblem</span>
+                  <span className="text-white">();</span>
+                </div>
+
+                <div className="flex">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">7</span>
+                  <span className="text-white">{"}"}</span>
+                </div>
+
+                <div className="flex mt-4">
+                  <span className="w-6 shrink-0 select-none text-right text-white/20 mr-4">8</span>
+                  <span className="text-gray-500">// Love, from the Author 😘</span>
+                </div>
+              </div>
+
+              <PenTool className="absolute bottom-4 right-4 h-16 w-16 text-white/5 rotate-12" aria-hidden="true" />
             </div>
           </div>
         </main>
