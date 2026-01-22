@@ -1,7 +1,8 @@
-import { Loader2, RefreshCcw } from "lucide-react";
+import { Loader2, RefreshCcw, PenTool } from "lucide-react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { AnalysisReport } from "@/components/interview/AnalysisReport";
 import { InterviewEditor } from "@/components/interview/Editor";
 import { MainLayout } from "@/components/interview/MainLayout";
@@ -194,7 +195,7 @@ export default function Interview() {
         return;
       }
 
-      const picked = await getRandomQuestionByTopic(displayTopic);
+      const picked = await getRandomQuestionByTopic(displayTopic, state.questionData?.id);
       if (!picked) throw new Error("本地题库为空或当前 Topic 无题目");
       const q: QuestionData = {
         id: picked.id,
@@ -264,69 +265,83 @@ export default function Interview() {
       <MainLayout
         topicLabel={displayTopic}
         progress={progress}
+        isGenerating={state.step === "LOADING_QUESTION" && state.source === "AI"}
         headerRight={
-          state.step === "ANSWERING" || state.step === "RESULT" ? (
+          state.step !== "INIT" ? (
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={handleNext}
-              disabled={state.step === "ANSWERING" && !state.questionData}
+              disabled={state.step === "LOADING_QUESTION" || state.step === "ANALYZING" || (state.step === "ANSWERING" && !state.questionData)}
+              className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-transparent hover:text-ink/70 hover:underline disabled:opacity-50"
             >
-              <RefreshCcw className="h-4 w-4" />
-              换一题
+              <RefreshCcw className={cn("mr-2 h-3 w-3", state.step === "LOADING_QUESTION" && "animate-spin")} />
+              {state.step === "LOADING_QUESTION"
+                ? (state.source === "AI" ? "Drafting..." : "Loading...")
+                : "Change Question"}
             </Button>
           ) : null
         }
         question={
           <QuestionCard
-            title={state.questionData ? "Question" : "Question"}
+            title={state.questionData ? "Question" : "Ready"}
             content={
               state.questionData?.content ||
-              "请先选择出题来源开始面试。\n\n- AI 出题：实时生成题目并评分\n- 本地题库：从 IndexedDB 随机抽题"
+              "Select a source to begin your interview session.\n\n- **AI Mode**: Real-time generation & grading\n- **Local Mode**: Random pick from IndexedDB"
             }
             difficulty={state.questionData?.difficulty ?? "Medium"}
             meta={state.questionData ? `${state.questionData.source} · ${state.questionData.type}` : undefined}
           />
         }
-        workspace={
-          <div className="flex h-full flex-col gap-4 overflow-hidden">
-            <div className="flex-1 overflow-hidden">
+        editor={
+          <div className="flex h-full flex-col gap-4">
+            {/* Editor Area - Main Writing Space */}
+            <div className="flex-1 overflow-hidden rounded-sm border border-ink/10 bg-white shadow-sm transition-all hover:shadow-md">
               <InterviewEditor
                 value={state.userCode}
                 onChange={(code) => dispatch({ type: "SET_CODE", code })}
                 disabled={state.step !== "ANSWERING"}
               />
             </div>
-            <div className="min-h-[14rem] flex-1 overflow-hidden">
+          </div>
+        }
+        analysis={
+          (state.step === "ANALYZING" || state.analysisResult) ? (
+            <div className="h-full overflow-hidden rounded-sm border border-ink/10 bg-white shadow-sm transition-all hover:shadow-md">
               {state.step === "ANALYZING" ? (
-                <div className="flex h-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm text-slate-600">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  正在分析评分...
+                <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-50/50 text-sm text-slate-600 p-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-ink" />
+                  <span className="font-sketch text-lg tracking-wide">Analyzing your sketch...</span>
                 </div>
-              ) : state.analysisResult ? (
-                <AnalysisReport evaluation={state.analysisResult} />
               ) : (
-                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-600">
-                  提交后在此展示评分报告
-                </div>
+                <AnalysisReport evaluation={state.analysisResult!} />
               )}
             </div>
-          </div>
+          ) : null
         }
         footer={
           <>
-            <Button onClick={handleSubmit} disabled={state.step !== "ANSWERING" || !state.questionData}>
+            <Button
+              onClick={handleSubmit}
+              disabled={state.step !== "ANSWERING" || !state.questionData}
+              className="h-12 rounded-none bg-ink px-8 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all hover:bg-ink/90 hover:shadow-lg disabled:opacity-50"
+            >
               {state.step === "ANALYZING" ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  提交回答
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analyzing...
                 </>
               ) : (
-                "提交回答"
+                "Submit Sketch"
               )}
             </Button>
-            <Button variant="outline" onClick={handleNext} disabled={!state.source || state.step === "ANALYZING"}>
-              下一题
+            <Button
+              variant="outline"
+              onClick={handleNext}
+              disabled={!state.source || state.step === "ANALYZING"}
+              className="h-12 rounded-none border-ink bg-white px-8 text-xs font-bold uppercase tracking-[0.2em] text-ink transition-all hover:bg-ink hover:text-white disabled:opacity-50"
+            >
+              Next Question
             </Button>
           </>
         }

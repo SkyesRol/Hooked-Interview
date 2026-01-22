@@ -1,8 +1,8 @@
-import { Code2, Loader2, Type } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Suspense, lazy, useState } from "react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { SimpleEditor } from "./SimpleEditor";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const MonacoWrapper = lazy(() => import("./MonacoWrapper").then((m) => ({ default: m.MonacoWrapper })));
 
@@ -27,38 +27,42 @@ export function InterviewEditor({
     if (isMobile) return <SimpleEditor value={value} onChange={onChange} readOnly={finalReadOnly} />;
 
     return (
-        <div className="flex h-full flex-col gap-2">
-            <div className="flex items-center gap-2">
-                <Button
-                    size="sm"
-                    variant={!useMonaco ? "default" : "outline"}
+        <div className="flex h-full flex-col bg-white/50">
+            <div className="flex items-center gap-2 border-b border-ink/5 px-4 pt-3 pb-2">
+                <button
                     onClick={() => setUseMonaco(false)}
-                    className="h-7 px-3 text-xs"
+                    className={cn(
+                        "rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-widest transition-all",
+                        !useMonaco
+                            ? "bg-ink text-white shadow-sm"
+                            : "text-ink/40 hover:bg-ink/5 hover:text-ink"
+                    )}
                     type="button"
                 >
-                    <Type className="mr-1 h-3 w-3" />
-                    文本模式
-                </Button>
-                <Button
-                    size="sm"
-                    variant={useMonaco ? "default" : "outline"}
+                    <span className="font-sketch tracking-wider normal-case text-sm">Text Mode</span>
+                </button>
+                <button
                     onClick={() => setUseMonaco(true)}
-                    className="h-7 px-3 text-xs"
+                    className={cn(
+                        "rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-widest transition-all",
+                        useMonaco
+                            ? "bg-ink text-white shadow-sm"
+                            : "text-ink/40 hover:bg-ink/5 hover:text-ink"
+                    )}
                     type="button"
                 >
-                    <Code2 className="mr-1 h-3 w-3" />
-                    专业编辑器
-                </Button>
+                    <span className="font-sketch tracking-wider normal-case text-sm">Code Editor</span>
+                </button>
             </div>
 
-            <div className="flex-1 overflow-hidden">
+            <div className="relative flex-1 overflow-hidden">
                 {useMonaco ? (
-                    <div className="h-full rounded-lg border border-slate-200 bg-white">
+                    <div className="h-full">
                         <Suspense
                             fallback={
                                 <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-600">
                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                    正在加载编辑器...
+                                    <span className="font-sketch">Loading Editor...</span>
                                 </div>
                             }
                         >

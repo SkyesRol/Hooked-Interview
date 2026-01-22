@@ -36,4 +36,45 @@
     background-size: 15px 15px, 15px 15px, 6px 6px;
     background-position: 0 0, 0 0, 0 0;
   }
+
+  /* Custom Scrollbar */
+  .scrollbar-sketch::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .scrollbar-sketch::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-sketch::-webkit-scrollbar-thumb {
+    background-color: rgba(44, 62, 80, 0.15);
+    border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+    transition: background-color 0.2s;
+  }
+
+  .scrollbar-sketch::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(44, 62, 80, 0.3);
+  }
+
+  .scrollbar-sketch::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Monaco Editor Customization */
+  .monaco-sketch .monaco-scrollable-element > .scrollbar > .slider {
+    background: rgba(44, 62, 80, 0.15) !important;
+    border-radius: 99px !important;
+    transition: background-color 0.2s !important;
+  }
+
+  .monaco-sketch .monaco-scrollable-element > .scrollbar > .slider:hover {
+    background: rgba(44, 62, 80, 0.3) !important;
+  }
+
+  .monaco-sketch .monaco-scrollable-element > .scrollbar > .shadow {
+    display: none !important;
+  }
 }

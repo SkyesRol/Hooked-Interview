@@ -20,7 +20,7 @@ export function SimpleEditor({
             onChange={handleChange}
             readOnly={readOnly}
             className={cn(
-                "h-full w-full resize-none rounded-lg border border-slate-200 bg-white p-3 font-mono text-sm leading-relaxed text-slate-900 outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
+                "scrollbar-sketch h-full w-full resize-none rounded-lg border border-slate-200 bg-white p-3 font-mono text-sm leading-relaxed text-slate-900 outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
                 readOnly ? "opacity-70" : null,
             )}
             placeholder="在这里输入你的答案或代码..."

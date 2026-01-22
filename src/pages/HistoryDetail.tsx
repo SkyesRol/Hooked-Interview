@@ -131,24 +131,16 @@ export default function HistoryDetail() {
       progress={score}
       headerRight={headerRight}
       question={
-        <div className="flex h-full flex-col gap-4 overflow-hidden">
-          <div className="min-h-0 overflow-hidden">
-            <QuestionCard
-              title="Question"
-              content={record.questionContent || "（无题目内容）"}
-              difficulty={normalizeDifficulty(record.difficulty)}
-              meta={record.sourceType ? `${record.sourceType} · ${record.questionType ?? "Code"}` : "Snapshot"}
-            />
-          </div>
-          <div className="min-h-[14rem] flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-950">AI Evaluation</div>
-            <div className="h-[calc(100%-3rem)] overflow-hidden p-4">
-              <AnalysisReport evaluation={record.evaluation} />
-            </div>
-          </div>
+        <div className="h-full overflow-hidden">
+          <QuestionCard
+            title="Question"
+            content={record.questionContent || "（无题目内容）"}
+            difficulty={normalizeDifficulty(record.difficulty)}
+            meta={record.sourceType ? `${record.sourceType} · ${record.questionType ?? "Code"}` : "Snapshot"}
+          />
         </div>
       }
-      workspace={
+      editor={
         <div className="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
             <span>Snapshot Code</span>
@@ -159,6 +151,14 @@ export default function HistoryDetail() {
               value={record.userAnswer}
               readOnly
             />
+          </div>
+        </div>
+      }
+      analysis={
+        <div className="min-h-[14rem] flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-950">AI Evaluation</div>
+          <div className="h-full overflow-hidden p-4">
+            <AnalysisReport evaluation={record.evaluation} />
           </div>
         </div>
       }

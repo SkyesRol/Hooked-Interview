@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { db, type QuestionItem } from "@/lib/db";
 
 export type QuestionState = {
-    getRandomQuestionByTopic: (topic: string) => Promise<QuestionItem | null>;
+    getRandomQuestionByTopic: (topic: string, excludeId?: string) => Promise<QuestionItem | null>;
     hasAnyQuestions: () => Promise<boolean>;
     countByTopic: (topic: string) => Promise<number>;
 };
@@ -16,11 +16,24 @@ export const useQuestionStore = create<QuestionState>(() => ({
         if (!topic) return 0;
         return db.questions.where("topic").equals(topic).count();
     },
-    getRandomQuestionByTopic: async (topic) => {
+    getRandomQuestionByTopic: async (topic, excludeId) => {
         if (!topic) return null;
         const list = await db.questions.where("topic").equals(topic).toArray();
-        if (list.length === 0) return null;
-        return list[Math.floor(Math.random() * list.length)];
+        
+        // If we want to exclude a specific ID (e.g. current question)
+        const candidates = excludeId 
+            ? list.filter(q => q.id !== excludeId)
+            : list;
+            
+        // If candidates are empty but original list wasn't (meaning only 1 question exists),
+        // we might have to return the original one or return null.
+        // Returning null allows the UI to say "No more questions".
+        // But for better UX, if there is only 1 question, maybe we just return it?
+        // Let's return from candidates if possible, else from list.
+        const pool = candidates.length > 0 ? candidates : list;
+        
+        if (pool.length === 0) return null;
+        return pool[Math.floor(Math.random() * pool.length)];
     },
 }));
 
