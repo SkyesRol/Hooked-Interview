@@ -1,5 +1,5 @@
 import { liveQuery } from "dexie";
-import { ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon, Pencil, Search, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileDown, LayoutGrid, List as ListIcon, Pencil, Search, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -236,6 +236,9 @@ export default function Questions() {
 
   const [eraseTarget, setEraseTarget] = useState<QuestionItem | null>(null);
   const eraseCancelRef = useRef<HTMLButtonElement | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   const topicsFactory = useCallback(async () => {
     const keys = await db.questions.orderBy("topic").uniqueKeys();
@@ -306,6 +309,71 @@ export default function Questions() {
     eraseCancelRef.current?.focus();
   }, [eraseTarget]);
 
+  useEffect(() => {
+    if (!isExportMenuOpen) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      if (!exportMenuRef.current) return;
+      if (exportMenuRef.current.contains(target)) return;
+      setIsExportMenuOpen(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsExportMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isExportMenuOpen]);
+
+  const handleExportAllQuestions = useCallback(async (mode: "full" | "lite") => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const questions = await db.questions.orderBy("createdAt").toArray();
+      const exportedAt = new Date().toISOString();
+      const stamp = exportedAt.replace(/[:.]/g, "-");
+      const filenameSuffix = mode === "full" ? "full" : "lite";
+      const exportQuestions =
+        mode === "full"
+          ? questions
+          : questions.map((q) => ({
+            topic: q.topic,
+            content: q.content,
+            questionType: q.questionType,
+            difficulty: q.difficulty,
+            tags: q.tags ?? [],
+          }));
+      const payload = {
+        exportedAt,
+        mode,
+        questions: exportQuestions,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `questions-export-${filenameSuffix}-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      toast.success(`已导出 ${questions.length} 道题`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`导出失败: ${message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [isExporting]);
+
   return (
     <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 pb-6 pt-4">
@@ -314,6 +382,65 @@ export default function Questions() {
           importLabel="IMPORT"
           right={
             <div className="flex items-center gap-2">
+              <div ref={exportMenuRef} className="relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isExporting}
+                  onClick={() => setIsExportMenuOpen((prev) => !prev)}
+                  className="h-9 border-sketch bg-white text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:text-gold disabled:opacity-50"
+                  aria-haspopup="menu"
+                  aria-expanded={isExportMenuOpen}
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  {isExporting ? "EXPORTING..." : "EXPORT"}
+                  <ChevronDown className="ml-2 h-4 w-4 opacity-70" />
+                </Button>
+                {isExportMenuOpen ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full z-50 mt-2 w-56 border-sketch bg-white p-2 shadow-sketch-hover"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full border-b border-ink/10 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-slate-50"
+                      onClick={() => {
+                        setIsExportMenuOpen(false);
+                        void handleExportAllQuestions("full");
+                      }}
+                      disabled={isExporting}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>完整版</span>
+                        <span className="text-ink-light">FULL</span>
+                      </div>
+                      <div className="mt-1 text-[11px] font-normal tracking-normal text-ink-light normal-case">
+                        导出全部字段，适合备份与迁移
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-slate-50"
+                      onClick={() => {
+                        setIsExportMenuOpen(false);
+                        void handleExportAllQuestions("lite");
+                      }}
+                      disabled={isExporting}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>精简版</span>
+                        <span className="text-ink-light">LITE</span>
+                      </div>
+                      <div className="mt-1 text-[11px] font-normal tracking-normal text-ink-light normal-case">
+                        仅导出 topic / content / type / difficulty / tags
+                      </div>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -380,28 +507,24 @@ export default function Questions() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-light">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded border border-ink/10 bg-white">
-                  <span className="h-2 w-2 rounded-full bg-gold" />
-                </span>
-                Difficulty
-              </span>
-              {(["All", "Simple", "Medium", "Hard"] as const).map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDifficulty(d)}
-                  className={cn(
-                    "rounded border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.2em] transition-colors",
-                    d === difficultyFilter
-                      ? "border-ink bg-ink text-white"
-                      : "border-ink/15 bg-white text-ink-light hover:border-ink/40 hover:text-ink",
-                  )}
-                >
-                  {d}
-                </button>
-              ))}
+            <div className="flex items-center justify-end gap-3">
+              <div className="flex items-center rounded-lg border border-ink/10 bg-white p-1 shadow-sm">
+                {(["All", "Simple", "Medium", "Hard"] as const).map((diff) => (
+                  <button
+                    key={diff}
+                    type="button"
+                    onClick={() => setDifficulty(diff)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all",
+                      difficultyFilter === diff
+                        ? "bg-ink text-white shadow-sm"
+                        : "text-ink-light hover:bg-slate-50 hover:text-ink",
+                    )}
+                  >
+                    {diff}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -1,356 +1,227 @@
-import { Loader2, RefreshCcw } from "lucide-react";
-import { useEffect, useMemo, useReducer, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { ChevronDown, FileDown, RefreshCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { AnalysisReport } from "@/components/interview/AnalysisReport";
-import { InterviewEditor } from "@/components/interview/Editor";
-import { InterviewStarter, type QuestionSource } from "@/components/interview/InterviewStarter";
-import { MainLayout } from "@/components/interview/MainLayout";
-import { QuestionCard } from "@/components/interview/QuestionCard";
+import AppHeader from "@/components/shared/AppHeader";
+import { HistoryCard } from "@/components/history/HistoryCard";
 import { Button } from "@/components/ui/button";
-import { type Difficulty, type InterviewEvaluation } from "@/lib/db";
-import { evaluateAnswer, generateQuestion } from "@/lib/ai/client";
+import { db, type InterviewRecord } from "@/lib/db";
+import { cn } from "@/lib/utils";
 import { useRecordStore } from "@/store/useRecordStore";
-import { useQuestionStore } from "@/store/useQuestionStore";
-import { getTechBySlug, TECH_STACKS } from "@/constants/topics";
 
-type InterviewStep = "INIT" | "LOADING_QUESTION" | "ANSWERING" | "ANALYZING" | "RESULT";
+function downloadJsonFile(filename: string, payload: unknown) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
 
-type QuestionData = {
-  id: string;
-  content: string;
-  type: string;
-  difficulty: Difficulty;
-  source: QuestionSource;
-};
-
-function normalizeSource(input: unknown): QuestionSource {
-  if (input === "AI" || input === "Local") return input;
-  return "AI";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-type CurrentSessionState = {
-  step: InterviewStep;
-  topic: string;
-  source: QuestionSource | null;
-  questionData: QuestionData | null;
-  userCode: string;
-  analysisResult: InterviewEvaluation | null;
-};
+export default function History() {
+  const navigate = useNavigate();
+  const records = useRecordStore((s) => s.records);
+  const isLoading = useRecordStore((s) => s.isLoading);
+  const loadRecords = useRecordStore((s) => s.loadRecords);
 
-type Action =
-  | { type: "RESET"; topic: string }
-  | { type: "SELECT_SOURCE"; source: QuestionSource }
-  | { type: "SET_STEP"; step: InterviewStep }
-  | { type: "SET_QUESTION"; question: QuestionData }
-  | { type: "SET_CODE"; code: string }
-  | { type: "SET_ANALYSIS"; analysis: InterviewEvaluation };
-
-function normalizeDifficulty(input: unknown): Difficulty {
-  if (input === "Simple" || input === "Medium" || input === "Hard") return input;
-  return "Medium";
-}
-
-function toRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object") return null;
-  if (Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function normalizeAnalysis(input: unknown): InterviewEvaluation {
-  const clamp = (n: unknown, min: number, max: number, fallback: number) => {
-    const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
-    return Math.min(max, Math.max(min, v));
-  };
-
-  const root = toRecord(input) ?? {};
-  const score = Math.round(clamp(root.score, 0, 100, 0));
-  const dimensions = toRecord(root.dimensions) ?? {};
-  const techTags = Array.isArray(root.techTags)
-    ? root.techTags.filter((t): t is string => typeof t === "string" && Boolean(t.trim()))
-    : [];
-  const comment = typeof root.comment === "string" ? root.comment : "";
-  const referenceAnswer = typeof root.referenceAnswer === "string" ? root.referenceAnswer : "";
-  return {
-    score,
-    techTags,
-    dimensions: {
-      accuracy: clamp(dimensions.accuracy, 0, 10, 0),
-      completeness: clamp(dimensions.completeness, 0, 10, 0),
-      logic: clamp(dimensions.logic, 0, 10, 0),
-      codeQuality: clamp(dimensions.codeQuality, 0, 10, 0),
-    },
-    comment,
-    referenceAnswer,
-  };
-}
-
-function reducer(state: CurrentSessionState, action: Action): CurrentSessionState {
-  switch (action.type) {
-    case "RESET":
-      return { step: "INIT", topic: action.topic, source: null, questionData: null, userCode: "", analysisResult: null };
-    case "SELECT_SOURCE":
-      return { ...state, source: action.source };
-    case "SET_STEP":
-      return { ...state, step: action.step };
-    case "SET_QUESTION":
-      return { ...state, questionData: action.question, userCode: "", analysisResult: null };
-    case "SET_CODE":
-      return { ...state, userCode: action.code };
-    case "SET_ANALYSIS":
-      return { ...state, analysisResult: action.analysis };
-    default:
-      return state;
-  }
-}
-
-export default function Interview() {
-  const { topic } = useParams();
-  const location = useLocation();
-  const addRecord = useRecordStore((s) => s.addRecord);
-  const hasAnyQuestions = useQuestionStore((s) => s.hasAnyQuestions);
-  const getRandomQuestionByTopic = useQuestionStore((s) => s.getRandomQuestionByTopic);
-  const [localEnabled, setLocalEnabled] = useState(false);
-
-  const displayTopic = useMemo(() => {
-    if (!topic) return "";
-    const decoded = decodeURIComponent(topic);
-    const bySlug = getTechBySlug(decoded.toLowerCase());
-    if (bySlug) return bySlug.label;
-    const byLabel = TECH_STACKS.find((t) => t.label.toLowerCase() === decoded.toLowerCase());
-    return byLabel ? byLabel.label : decoded;
-  }, [topic]);
-
-  const [state, dispatch] = useReducer(reducer, {
-    step: "INIT",
-    topic: displayTopic,
-    source: null,
-    questionData: null,
-    userCode: "",
-    analysisResult: null,
-  });
-
-  const retryQuestion = useMemo(() => {
-    const root = toRecord(location.state);
-    if (!root || root.retryMode !== true) return null;
-    const fixed = toRecord(root.fixedQuestion);
-    if (!fixed) return null;
-    const content = fixed.content;
-    if (typeof content !== "string" || !content.trim()) return null;
-    const q: QuestionData = {
-      id: typeof fixed.id === "string" ? fixed.id : crypto.randomUUID(),
-      content,
-      type: typeof fixed.type === "string" ? fixed.type : "Code",
-      difficulty: normalizeDifficulty(fixed.difficulty),
-      source: normalizeSource(fixed.source),
-    };
-    return q;
-  }, [location.state]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    dispatch({ type: "RESET", topic: displayTopic });
-    if (!retryQuestion) return;
-    dispatch({ type: "SELECT_SOURCE", source: retryQuestion.source });
-    dispatch({ type: "SET_QUESTION", question: retryQuestion });
-    dispatch({ type: "SET_STEP", step: "ANSWERING" });
-  }, [displayTopic, retryQuestion]);
-
-  useEffect(() => {
-    let mounted = true;
-    hasAnyQuestions().then((enabled) => {
-      if (!mounted) return;
-      setLocalEnabled(enabled);
+    loadRecords().catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`加载记录失败: ${message}`);
     });
+  }, [loadRecords]);
+
+  useEffect(() => {
+    if (!isExportMenuOpen) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      if (!exportMenuRef.current) return;
+      if (exportMenuRef.current.contains(target)) return;
+      setIsExportMenuOpen(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsExportMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      mounted = false;
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [hasAnyQuestions]);
+  }, [isExportMenuOpen]);
 
-  const progress = useMemo(() => {
-    const map: Record<InterviewStep, number> = {
-      INIT: 0,
-      LOADING_QUESTION: 25,
-      ANSWERING: 50,
-      ANALYZING: 75,
-      RESULT: 100,
-    };
-    return map[state.step];
-  }, [state.step]);
-
-  const fetchQuestion = async (source: QuestionSource) => {
-    dispatch({ type: "SET_STEP", step: "LOADING_QUESTION" });
+  const handleExportAllRecords = useCallback(async (mode: "full" | "lite") => {
+    if (isExporting) return;
+    setIsExporting(true);
     try {
-      if (source === "AI") {
-        const generated = await generateQuestion(displayTopic || "Frontend");
-        const q: QuestionData = {
-          id: crypto.randomUUID(),
-          content: generated.question,
-          type: generated.type,
-          difficulty: normalizeDifficulty(generated.difficulty),
-          source: "AI",
-        };
-        dispatch({ type: "SET_QUESTION", question: q });
-        dispatch({ type: "SET_STEP", step: "ANSWERING" });
-        return;
-      }
+      const list = await db.records.orderBy("timestamp").reverse().toArray();
+      const exportedAt = new Date().toISOString();
+      const stamp = exportedAt.replace(/[:.]/g, "-");
+      const filenameSuffix = mode === "full" ? "full" : "lite";
+      const recordsPayload =
+        mode === "full"
+          ? list
+          : list.map((record) => ({
+            difficulty: record.difficulty ?? null,
+            questionContent: record.questionContent,
+            userAnswer: record.userAnswer,
+            evaluation: record.evaluation,
+          }));
 
-      const picked = await getRandomQuestionByTopic(displayTopic, state.questionData?.id);
-      if (!picked) throw new Error("本地题库为空或当前 Topic 无题目");
-      const q: QuestionData = {
-        id: picked.id,
-        content: picked.content,
-        type: picked.questionType ?? "Code",
-        difficulty: picked.difficulty,
-        source: "Local",
-      };
-      dispatch({ type: "SET_QUESTION", question: q });
-      dispatch({ type: "SET_STEP", step: "ANSWERING" });
+      downloadJsonFile(`history-export-${filenameSuffix}-${stamp}.json`, { exportedAt, mode, records: recordsPayload });
+      toast.success(`已导出 ${list.length} 条记录`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
-      dispatch({ type: "SET_STEP", step: "INIT" });
+      toast.error(`导出失败: ${message}`);
+    } finally {
+      setIsExporting(false);
     }
-  };
+  }, [isExporting]);
 
-  const handleSelectSource = async (source: QuestionSource) => {
-    dispatch({ type: "SELECT_SOURCE", source });
-    await fetchQuestion(source);
-  };
-
-  const handleSubmit = async () => {
-    if (!state.questionData) return;
-    dispatch({ type: "SET_STEP", step: "ANALYZING" });
+  const handleRefresh = useCallback(async () => {
     try {
-      const result = await evaluateAnswer({
-        topic: displayTopic || "Frontend",
-        question: state.questionData.content,
-        userAnswer: state.userCode,
-      });
-      const evaluation = normalizeAnalysis(result);
-      dispatch({ type: "SET_ANALYSIS", analysis: evaluation });
-      dispatch({ type: "SET_STEP", step: "RESULT" });
-
-      await addRecord({
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        topic: displayTopic || "Frontend",
-        sourceType: state.questionData.source,
-        questionId: state.questionData.id,
-        difficulty: state.questionData.difficulty,
-        questionType: state.questionData.type,
-        questionContent: state.questionData.content,
-        userAnswer: state.userCode,
-        evaluation,
-      });
+      await loadRecords();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      toast.error(`评分失败: ${message}`);
-      dispatch({ type: "SET_STEP", step: "ANSWERING" });
+      toast.error(`刷新失败: ${message}`);
     }
-  };
+  }, [loadRecords]);
 
-  const handleNext = async () => {
-    if (!state.source) {
-      dispatch({ type: "SET_STEP", step: "INIT" });
-      return;
-    }
-    await fetchQuestion(state.source);
-  };
+  const headerRight = (
+    <>
+      <div ref={exportMenuRef} className="relative">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isExporting}
+          onClick={() => setIsExportMenuOpen((prev) => !prev)}
+          className="h-9 border-sketch bg-white text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:text-gold disabled:opacity-50"
+          aria-haspopup="menu"
+          aria-expanded={isExportMenuOpen}
+        >
+          <FileDown className="mr-2 h-4 w-4" />
+          {isExporting ? "EXPORTING..." : "EXPORT"}
+          <ChevronDown className="ml-2 h-4 w-4 opacity-70" />
+        </Button>
+        {isExportMenuOpen ? (
+          <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-56 border-sketch bg-white p-2 shadow-sketch-hover">
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full border-b border-ink/10 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-slate-50"
+              onClick={() => {
+                setIsExportMenuOpen(false);
+                void handleExportAllRecords("full");
+              }}
+              disabled={isExporting}
+            >
+              <div className="flex items-center justify-between">
+                <span>完整版</span>
+                <span className="text-ink-light">FULL</span>
+              </div>
+              <div className="mt-1 text-[11px] font-normal tracking-normal text-ink-light normal-case">
+                导出全部字段，适合备份与复盘
+              </div>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-slate-50"
+              onClick={() => {
+                setIsExportMenuOpen(false);
+                void handleExportAllRecords("lite");
+              }}
+              disabled={isExporting}
+            >
+              <div className="flex items-center justify-between">
+                <span>精简版</span>
+                <span className="text-ink-light">LITE</span>
+              </div>
+              <div className="mt-1 text-[11px] font-normal tracking-normal text-ink-light normal-case">
+                仅导出 difficulty / questionContent / userAnswer / evaluation
+              </div>
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        onClick={handleRefresh}
+        disabled={isLoading}
+        className="h-9 w-9 border-sketch bg-white text-ink hover:text-gold disabled:opacity-50"
+        aria-label="Refresh"
+      >
+        <RefreshCcw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+      </Button>
+    </>
+  );
 
   return (
-    <>
-      <MainLayout
-        topicLabel={displayTopic}
-        progress={progress}
-        isGenerating={state.step === "LOADING_QUESTION" && state.source === "AI"}
-        headerRight={
-          state.step !== "INIT" ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleNext}
-              disabled={
-                state.step === "LOADING_QUESTION" ||
-                state.step === "ANALYZING" ||
-                (state.step === "ANSWERING" && !state.questionData)
-              }
-              className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-transparent hover:text-ink/70 hover:underline disabled:opacity-50"
-            >
-              <RefreshCcw className={cn("mr-2 h-3 w-3", state.step === "LOADING_QUESTION" && "animate-spin")} />
-              {state.step === "LOADING_QUESTION"
-                ? state.source === "AI"
-                  ? "Drafting..."
-                  : "Loading..."
-                : "Change Question"}
-            </Button>
-          ) : null
-        }
-        question={
-          state.questionData ? (
-            <QuestionCard
-              title="Question"
-              content={state.questionData.content}
-              difficulty={state.questionData.difficulty}
-              meta={`${state.questionData.source} · ${state.questionData.type}`}
-            />
-          ) : (
-            <InterviewStarter onSelect={handleSelectSource} localEnabled={localEnabled} />
-          )
-        }
-        editor={
-          <div className="flex h-full flex-col gap-4">
-            {/* Editor Area - Main Writing Space */}
-            <div className="flex-1 overflow-hidden rounded-sm border border-ink/10 bg-white shadow-sm transition-all hover:shadow-md">
-              <InterviewEditor
-                value={state.userCode}
-                onChange={(code) => dispatch({ type: "SET_CODE", code })}
-                disabled={state.step !== "ANSWERING"}
+    <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 pb-6 pt-4">
+        <AppHeader active="history" right={headerRight} />
+
+        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <h1 className="font-heading text-4xl font-bold">
+              History <span className="text-gold italic">Archive</span>
+            </h1>
+            <p className="mt-2 max-w-xl text-sm font-light text-ink-light">Review your previous answers, AI evaluations, and retry mistakes.</p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="border-sketch bg-white p-5 animate-pulse">
+                <div className="h-5 w-40 rounded bg-slate-100" />
+                <div className="mt-3 h-3 w-full rounded bg-slate-100" />
+                <div className="mt-2 h-3 w-5/6 rounded bg-slate-100" />
+                <div className="mt-6 h-2 w-full rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        ) : records.length ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {records.map((record: InterviewRecord) => (
+              <HistoryCard
+                key={record.id}
+                record={record}
+                onClick={() => navigate(`/history/${record.id}`)}
               />
+            ))}
+          </div>
+        ) : (
+          <div className="border-sketch bg-white p-10 text-center">
+            <h2 className="font-heading text-xl font-bold text-ink">No history yet</h2>
+            <p className="mt-2 text-sm text-ink-light">Finish an interview session to generate your first record.</p>
+            <div className="mt-6 flex justify-center">
+              <Button
+                type="button"
+                onClick={() => navigate("/")}
+                className="h-10 border-sketch bg-ink px-6 text-[10px] font-bold uppercase tracking-[0.2em] text-white hover:bg-gold hover:text-ink"
+              >
+                Go Practice
+              </Button>
             </div>
           </div>
-        }
-        analysis={
-          (state.step === "ANALYZING" || state.analysisResult) ? (
-            <div className="h-full overflow-hidden rounded-sm border border-ink/10 bg-white shadow-sm transition-all hover:shadow-md">
-              {state.step === "ANALYZING" ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-50/50 text-sm text-slate-600 p-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-ink" />
-                  <span className="font-sketch text-lg tracking-wide">Analyzing your sketch...</span>
-                </div>
-              ) : (
-                <AnalysisReport evaluation={state.analysisResult!} />
-              )}
-            </div>
-          ) : null
-        }
-        footer={
-          <>
-            <Button
-              onClick={handleSubmit}
-              disabled={state.step !== "ANSWERING" || !state.questionData}
-              className="h-12 rounded-none bg-ink px-8 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all hover:bg-ink/90 hover:shadow-lg disabled:opacity-50"
-            >
-              {state.step === "ANALYZING" ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                "Submit Sketch"
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleNext}
-              disabled={!state.source || state.step === "ANALYZING"}
-              className="h-12 rounded-none border-ink bg-white px-8 text-xs font-bold uppercase tracking-[0.2em] text-ink transition-all hover:bg-ink hover:text-white disabled:opacity-50"
-            >
-              Next Question
-            </Button>
-          </>
-        }
-      />
-    </>
+        )}
+      </div>
+    </div>
   );
 }
