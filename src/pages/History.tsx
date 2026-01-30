@@ -1,90 +1,205 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
+import OpenAI from "openai";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { History as HistoryIcon, RefreshCcw } from "lucide-react";
-import { HistoryCard } from "@/components/history/HistoryCard";
+import { useForm } from "react-hook-form";
+import { Link, useLocation } from "react-router-dom";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { formatClientError } from "@/lib/ai/client";
 import { cn } from "@/lib/utils";
-import { useRecordStore } from "@/store/useRecordStore";
+import { isSameOriginAsApp, normalizeBaseUrl } from "@/lib/ai/normalizeBaseUrl";
+import { useSettingsStore } from "@/store/useSettingsStore";
 
-export default function History() {
-  const navigate = useNavigate();
-  const loadRecords = useRecordStore((s) => s.loadRecords);
-  const records = useRecordStore((s) => s.records);
-  const isLoading = useRecordStore((s) => s.isLoading);
+const settingsSchema = z
+  .object({
+    apiKey: z.string().min(1, "请输入 API Key"),
+    baseUrl: z.string().url("请输入有效的 URL (包含 http/https)"),
+    model: z.string().min(1, "请输入模型名称"),
+  });
 
-  const [filterTopic, setFilterTopic] = useState<string>("All");
+type SettingsFormValues = z.infer<typeof settingsSchema>;
+
+export default function Settings() {
+  const location = useLocation();
+  const apiKey = useSettingsStore((s) => s.apiKey);
+  const baseUrl = useSettingsStore((s) => s.baseUrl);
+  const model = useSettingsStore((s) => s.model);
+  const setSettings = useSettingsStore((s) => s.setSettings);
+
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const fromPathname = (location.state as { from?: string } | null)?.from;
+  const showBackToHome = useMemo(() => fromPathname === "/" || Boolean(fromPathname), [fromPathname]);
+
+  const form = useForm<SettingsFormValues>({
+    resolver: zodResolver(settingsSchema),
+    defaultValues: { apiKey, baseUrl, model },
+    mode: "onBlur",
+  });
 
   useEffect(() => {
-    void loadRecords();
-  }, [loadRecords]);
+    form.reset({ apiKey, baseUrl, model });
+  }, [apiKey, baseUrl, model, form]);
 
-  const topics = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of records) set.add(r.topic);
-    return ["All", ...[...set].sort((a, b) => a.localeCompare(b))];
-  }, [records]);
+  const handleTestConnection = async () => {
+    const isValid = await form.trigger();
+    if (!isValid) return;
 
-  const filteredRecords = useMemo(() => {
-    if (filterTopic === "All") return records;
-    return records.filter((r) => r.topic === filterTopic);
-  }, [filterTopic, records]);
+    const values = form.getValues();
+    const normalizedBaseUrl = normalizeBaseUrl(values.baseUrl);
+    if (isSameOriginAsApp(normalizedBaseUrl)) {
+      toast.error("Base URL 指向了当前前端站点，请填写真实的 API Host（例如 https://api.openai.com/v1）");
+      return;
+    }
+
+    setIsTesting(true);
+    try {
+      const client = new OpenAI({
+        apiKey: values.apiKey,
+        baseURL: normalizedBaseUrl,
+        dangerouslyAllowBrowser: true,
+      });
+
+      const payloadForLog = {
+        model: values.model,
+        messages: [{ role: "user", content: "hi" }],
+      };
+
+      console.log("[Test Connection] chat.completions payload:", payloadForLog);
+
+      await client.chat.completions.create({
+        model: values.model,
+        messages: [{ role: "user", content: "hi" }],
+      });
+
+      toast.success("连接成功，模型可用");
+    } catch (err) {
+      toast.error(`连接失败: ${formatClientError(err)}`);
+      console.error(err);
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const onSubmit = (values: SettingsFormValues) => {
+    const normalized = { ...values, baseUrl: normalizeBaseUrl(values.baseUrl) };
+    setSettings(normalized);
+    form.setValue("baseUrl", normalized.baseUrl, { shouldDirty: false, shouldTouch: true, shouldValidate: true });
+    toast.success("设置已保存");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold text-slate-950">Interview History</h1>
-            <p className="text-sm text-slate-600">Review your past interviews and retry mistakes.</p>
-          </div>
+      <div className="mx-auto w-full max-w-xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>全局配置</CardTitle>
+            <CardDescription>配置你的 AI 接口信息（配置仅存储在本地浏览器；题库与面试记录存储在 IndexedDB）。</CardDescription>
+          </CardHeader>
 
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-slate-600" htmlFor="history-topic-filter">
-              Topic
-            </label>
-            <select
-              id="history-topic-filter"
-              value={filterTopic}
-              onChange={(e) => setFilterTopic(e.target.value)}
-              className={cn(
-                "h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",
-              )}
-            >
-              {topics.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+          <CardContent className="space-y-6">
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>您的 API Key 仅存储在本地浏览器中，绝不会上传至任何服务器。</AlertDescription>
+            </Alert>
 
-            <Button variant="outline" size="sm" onClick={() => void loadRecords()} disabled={isLoading}>
-              <RefreshCcw className="h-4 w-4" />
-              刷新
-            </Button>
-          </div>
-        </div>
+            <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+              <div className="space-y-2">
+                <Label htmlFor="baseUrl">API Base URL</Label>
+                <Input
+                  id="baseUrl"
+                  placeholder="https://api.openai.com/v1"
+                  autoComplete="off"
+                  {...form.register("baseUrl")}
+                />
+                {form.formState.errors.baseUrl?.message ? (
+                  <p className="text-sm text-red-600">{form.formState.errors.baseUrl.message}</p>
+                ) : null}
+              </div>
 
-        {isLoading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-sm text-slate-600">正在加载记录...</div>
-        ) : filteredRecords.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-              <HistoryIcon className="h-5 w-5" />
-            </div>
-            <h2 className="mt-4 text-base font-semibold text-slate-950">No records yet</h2>
-            <p className="mt-1 text-sm text-slate-600">Start your first interview to generate history records.</p>
-            <div className="mt-6 flex justify-center">
-              <Button onClick={() => navigate("/")}>Back to Home</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredRecords.map((record) => (
-              <HistoryCard key={record.id} record={record} onClick={() => navigate(`/history/${record.id}`)} />
-            ))}
-          </div>
-        )}
+              <div className="space-y-2">
+                <Label htmlFor="apiKey">API Key</Label>
+                <div className="relative">
+                  <Input
+                    id="apiKey"
+                    placeholder="sk-..."
+                    type={showApiKey ? "text" : "password"}
+                    autoComplete="off"
+                    {...form.register("apiKey")}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey((v) => !v)}
+                    className={cn(
+                      "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-500 hover:bg-slate-100",
+                    )}
+                    aria-label={showApiKey ? "隐藏 API Key" : "显示 API Key"}
+                  >
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {form.formState.errors.apiKey?.message ? (
+                  <p className="text-sm text-red-600">{form.formState.errors.apiKey.message}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="model">模型</Label>
+                <Input id="model" placeholder="gpt-3.5-turbo" autoComplete="off" {...form.register("model")} />
+                {form.formState.errors.model?.message ? (
+                  <p className="text-sm text-red-600">{form.formState.errors.model.message}</p>
+                ) : null}
+              </div>
+
+              <CardFooter className="gap-3 px-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTestConnection}
+                  disabled={isTesting}
+                >
+                  {isTesting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      测试连接
+                    </>
+                  ) : (
+                    "测试连接"
+                  )}
+                </Button>
+                <Button type="submit" disabled={form.formState.isSubmitting || isTesting}>
+                  保存配置
+                </Button>
+
+                {showBackToHome ? (
+                  <Link
+                    to={fromPathname ?? "/"}
+                    className={
+                      "ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                    }
+                  >
+                    返回首页
+                  </Link>
+                ) : null}
+              </CardFooter>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Loader2, RefreshCcw, PenTool } from "lucide-react";
+import { Loader2, RefreshCcw } from "lucide-react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -270,14 +270,20 @@ export default function Interview() {
           state.step !== "INIT" ? (
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               onClick={handleNext}
-              disabled={state.step === "LOADING_QUESTION" || state.step === "ANALYZING" || (state.step === "ANSWERING" && !state.questionData)}
+              disabled={
+                state.step === "LOADING_QUESTION" ||
+                state.step === "ANALYZING" ||
+                (state.step === "ANSWERING" && !state.questionData)
+              }
               className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-transparent hover:text-ink/70 hover:underline disabled:opacity-50"
             >
               <RefreshCcw className={cn("mr-2 h-3 w-3", state.step === "LOADING_QUESTION" && "animate-spin")} />
               {state.step === "LOADING_QUESTION"
-                ? (state.source === "AI" ? "Drafting..." : "Loading...")
+                ? state.source === "AI"
+                  ? "Drafting..."
+                  : "Loading..."
                 : "Change Question"}
             </Button>
           ) : null

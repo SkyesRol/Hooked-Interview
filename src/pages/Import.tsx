@@ -1,13 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Database, FileJson, PenTool, Plus, Save } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ManualEntryForm from "@/components/import/ManualEntryForm";
 import JsonPaste from "@/components/import/JsonPaste";
 import StagingList from "@/components/import/StagingList";
 import type { RawInput, StagedItem } from "@/components/import/types";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db";
 import type { QuestionItem } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -16,6 +15,7 @@ import { computeContentHash, validateAndCheckDuplicates } from "@/services/impor
 type ImportMode = "manual" | "json";
 
 export default function Import() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<ImportMode>("manual");
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [isCommitting, setIsCommitting] = useState(false);
@@ -75,11 +75,11 @@ export default function Import() {
       );
 
       await db.questions.bulkAdd(toInsert);
-      toast.success(`已写入 ${toInsert.length} 道题`);
+      toast.success(`Successfully imported ${toInsert.length} questions`);
       setStagedItems((prev) => prev.filter((i) => i.status !== "valid"));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      toast.error(`写入失败: ${message}`);
+      toast.error(`Import failed: ${message}`);
       console.error(err);
     } finally {
       setIsCommitting(false);
@@ -87,71 +87,111 @@ export default function Import() {
   }, [stagedItems]);
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <div className="mx-auto w-full max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-center gap-3">
-          <Link
-            to="/"
-            className={cn(
-              "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900",
-              "transition-colors hover:bg-slate-50",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",
-            )}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            返回
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">智能导入题库</h1>
-            <p className="mt-1 text-sm text-slate-600">Input → Preview → Save。当前仅做精确去重（topic + content）。</p>
-          </div>
-          <Button type="button" onClick={commit} disabled={!validCount || isCommitting}>
-            写入题库（{validCount}）
-          </Button>
-        </header>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>输入</CardTitle>
-            <CardDescription>选择手动录入或粘贴 JSON 批量导入。</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("manual")}
-                className={cn(
-                  "inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium",
-                  mode === "manual" ? "border-slate-900 bg-slate-900 text-slate-50" : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-                )}
-              >
-                Manual Entry
+    <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 pb-3 pt-4">
+        {/* Navigation Bar */}
+        <nav className="flex items-center justify-between py-4">
+          <div className="flex items-center gap-8">
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="flex items-center gap-2 font-heading text-xl font-bold italic transition-colors hover:text-gold"
+            >
+              <PenTool className="h-4 w-4 text-gold" aria-hidden="true" />
+              Frontend Playground
+            </button>
+            <div className="hidden items-center gap-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-light md:flex">
+              <button type="button" onClick={() => navigate("/")} className="transition-colors hover:text-ink">
+                PRACTICE
               </button>
-              <button
-                type="button"
-                onClick={() => setMode("json")}
-                className={cn(
-                  "inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium",
-                  mode === "json" ? "border-slate-900 bg-slate-900 text-slate-50" : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-                )}
-              >
-                JSON Batch
+              <button type="button" onClick={() => navigate("/history")} className="transition-colors hover:text-ink">
+                HISTORY
+              </button>
+              <button type="button" className="text-ink font-bold">
+                IMPORT QUESTIONS
               </button>
             </div>
+          </div>
+        </nav>
 
-            {mode === "manual" ? <ManualEntryForm onStage={stageRawItems} /> : <JsonPaste onStage={stageRawItems} />}
-          </CardContent>
-        </Card>
+        {/* Page Header */}
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <h1 className="font-heading text-4xl font-bold">
+              Import <span className="text-gold italic">Questions</span>
+            </h1>
+            <p className="mt-2 max-w-xl text-sm font-light text-ink-light">
+              Add new questions to your local database. Input → Preview → Save.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={commit}
+            disabled={!validCount || isCommitting}
+            className="h-10 border-sketch bg-ink px-6 text-[10px] font-bold uppercase tracking-[0.2em] text-white hover:bg-gold hover:text-ink disabled:opacity-50"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Save to Database ({validCount})
+          </Button>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>暂存区</CardTitle>
-            <CardDescription>确认无误后写入 IndexedDB。Duplicate 可强制加入，Error 需修正后重试。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <StagingList items={stagedItems} onForceAdd={forceAdd} onRemove={removeItem} />
-          </CardContent>
-        </Card>
+        {/* Input Section */}
+        <div className="mb-8 space-y-6">
+          <div className="flex flex-col overflow-hidden border-sketch bg-white">
+            <div className="flex items-center justify-between border-b border-ink/10 bg-slate-50/30 px-6 py-4">
+              <div>
+                <h3 className="font-heading text-lg font-bold text-ink">Input Source</h3>
+                <p className="text-xs text-ink-light">Choose manual entry or bulk JSON import</p>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setMode("manual")}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all",
+                    mode === "manual" ? "bg-white text-ink shadow-sm" : "text-ink-light hover:text-ink"
+                  )}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("json")}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all",
+                    mode === "json" ? "bg-white text-ink shadow-sm" : "text-ink-light hover:text-ink"
+                  )}
+                >
+                  <FileJson className="h-3.5 w-3.5" />
+                  JSON Batch
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {mode === "manual" ? <ManualEntryForm onStage={stageRawItems} /> : <JsonPaste onStage={stageRawItems} />}
+            </div>
+          </div>
+        </div>
+
+        {/* Staging Area */}
+        <div className="mb-12 flex-1">
+          <div className="flex flex-col overflow-hidden border-sketch bg-white min-h-[400px]">
+            <div className="flex items-center justify-between border-b border-ink/10 bg-slate-50/30 px-6 py-4">
+              <div>
+                <h3 className="font-heading text-lg font-bold text-ink">Staging Area</h3>
+                <p className="text-xs text-ink-light">Review items before saving. Duplicates can be forced.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Database className="h-4 w-4 text-ink-light" />
+                <span className="text-xs font-bold text-ink">{stagedItems.length} Items</span>
+              </div>
+            </div>
+            <div className="flex-1 bg-slate-50/20 p-6">
+              <StagingList items={stagedItems} onForceAdd={forceAdd} onRemove={removeItem} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

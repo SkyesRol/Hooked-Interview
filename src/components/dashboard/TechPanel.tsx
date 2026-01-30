@@ -31,6 +31,13 @@ const TAG_MAP: Record<string, string[]> = {
   CSS: ["#Layout", "#Animation"],
   "Node.js": ["#Runtime", "#APIs"],
   Electron: ["#Desktop", "#IPC"],
+  "AI & LLM": ["#Prompt", "#RAG", "#Agents"],
+  Browser: ["#Rendering", "#EventLoop", "#Network"],
+  Algorithms: ["#DataStructures", "#Complexity", "#Patterns"],
+  Performance: ["#WebVitals", "#Profiling", "#Optimization"],
+  "Frontend Engineering": ["#Tooling", "#CI/CD", "#Architecture"],
+  Git: ["#VersionControl", "#Branching", "#Rebase"],
+  "Soft Skills": ["#Introduction", "#Strengths", "#Blogging"],
 };
 
 const DESC_MAP: Record<string, string> = {
@@ -42,6 +49,13 @@ const DESC_MAP: Record<string, string> = {
   CSS: "Layout systems, visuals, and motion.",
   "Node.js": "Server runtime, modules, and tooling.",
   Electron: "Desktop bridges, IPC, and packaging.",
+  "AI & LLM": "Prompting, evaluation, and production-grade AI workflows.",
+  Browser: "Rendering pipeline, networking, storage, and browser internals.",
+  Algorithms: "Data structures, complexity, and problem-solving patterns.",
+  Performance: "Web Vitals, runtime profiling, and optimization strategies.",
+  "Frontend Engineering": "Tooling, automation, and large-scale application architecture.",
+  Git: "Version control, branching strategies, and collaboration workflows.",
+  "Soft Skills": "Personal introduction, behavioral questions, and career growth.",
 };
 
 function getDifficultyLabel(avgScore: number, count: number) {

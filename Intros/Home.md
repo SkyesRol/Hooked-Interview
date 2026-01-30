@@ -147,6 +147,15 @@ graph TD
     *   **NEW**: 练习次数为 0。
     *   **MED/HARD/EASY**: 根据平均分动态显示难度标签颜色。
     *   **进度条**: 卡片底部显示该技术的平均分进度条。
+*   **Topic 结构设计**:
+    *   **基础栈 (Core Stacks)**: Vue, React, JavaScript, TypeScript, HTML, CSS, Node.js, Electron —— 对应日常前端开发的主技术栈。
+    *   **AI 能力 (AI & LLM)**: 聚焦大模型相关能力（Prompt、RAG、Agent 设计），帮助构建 AI 辅助开发/产品的系统性能力。
+    *   **系统能力向板块 (Capability Tracks)**：
+        *   **Browser**: 浏览器渲染流水线、事件循环、网络与存储等底层机制。
+        *   **Algorithms**: 数据结构、复杂度分析与解题模式，覆盖常见面试算法题。
+        *   **Performance**: Web Vitals、首屏/交互性能、运行时 Profiling 与优化实践。
+        *   **Frontend Engineering**: 工程化工具链、CI/CD、团队协作与大规模前端架构。
+    *   每个 Topic 卡片会显示 2–3 个简短 Tag（如 `#Hooks`, `#Prompt`, `#WebVitals`），作为该方向的「能力标签」，与 Dashboard 中基于 `techTags` 的雷达图形成呼应。
 
 ### 4.4 技能雷达 (Stats Overview / Radar)
 

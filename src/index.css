@@ -77,4 +77,20 @@
   .monaco-sketch .monaco-scrollable-element > .scrollbar > .shadow {
     display: none !important;
   }
+
+  .prose li {
+    @apply pl-1;
+  }
+  .prose code {
+    @apply bg-slate-100 px-1.5 py-0.5 rounded text-[13px] font-code text-pink-600 border border-slate-200;
+  }
+  .prose pre {
+    @apply bg-[#1e1e1e] text-[#d4d4d4] p-4 rounded-lg overflow-x-auto mb-6 border border-slate-700 shadow-md;
+  }
+  .prose pre code {
+    @apply bg-transparent p-0 border-0 text-xs text-inherit;
+  }
+  .prose blockquote {
+    @apply border-l-4 border-gold/50 pl-4 italic my-4 text-slate-500 bg-slate-50/50 py-2;
+  }
 }

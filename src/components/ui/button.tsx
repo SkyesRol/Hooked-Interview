@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 type ButtonVariant = "default" | "outline";
-type ButtonSize = "default" | "sm";
+type ButtonSize = "default" | "sm" | "icon";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -21,6 +21,7 @@ const variantClassName: Record<ButtonVariant, string> = {
 const sizeClassName: Record<ButtonSize, string> = {
   default: "h-10 px-4 py-2",
   sm: "h-9 px-3",
+  icon: "h-10 w-10",
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(

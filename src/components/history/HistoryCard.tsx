@@ -2,7 +2,6 @@ import { Atom, Braces, Code2, Layers, Server, Sparkles } from "lucide-react";
 import type { ComponentType } from "react";
 import type { InterviewRecord } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
@@ -32,9 +31,9 @@ function formatRelativeTime(timestamp: number) {
 }
 
 function getScoreMeta(score: number) {
-  if (score >= 80) return { badgeVariant: "success" as const, indicatorClassName: "bg-green-600" };
+  if (score >= 80) return { badgeVariant: "success" as const, indicatorClassName: "bg-emerald-500" };
   if (score >= 60) return { badgeVariant: "warning" as const, indicatorClassName: "bg-yellow-500" };
-  return { badgeVariant: "destructive" as const, indicatorClassName: "bg-red-600" };
+  return { badgeVariant: "destructive" as const, indicatorClassName: "bg-rose-500" };
 }
 
 function getTopicIcon(topic: string): { Icon: ComponentType<{ className?: string }>; className: string } {
@@ -55,29 +54,36 @@ export function HistoryCard({ record, onClick }: { record: InterviewRecord; onCl
   const source = record.sourceType ?? "Unknown";
 
   return (
-    <button type="button" onClick={onClick} className="text-left">
-      <Card className="h-full transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2">
-        <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+    <button type="button" onClick={onClick} className="group w-full text-left focus:outline-none">
+      <div className="flex h-full flex-col justify-between border-sketch bg-white p-5 transition-all duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-gold">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Icon className={cn("h-5 w-5 shrink-0", iconClassName)} />
-            <CardTitle className="truncate text-base">{record.topic}</CardTitle>
+            <h3 className="truncate font-heading text-lg font-bold text-ink">{record.topic}</h3>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline">{source}</Badge>
-            <Badge variant={badgeVariant}>{score}</Badge>
+            <span className="rounded border border-ink/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-light">
+              {source}
+            </span>
+            <Badge variant={badgeVariant} className="text-[10px] font-bold">
+              {score}
+            </Badge>
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent className="space-y-2">
-          <p className="text-sm text-slate-600">{snippet ? `${snippet}${snippet.length >= 80 ? "..." : ""}` : "（无题目内容）"}</p>
-          <p className="text-xs text-slate-500">{formatRelativeTime(record.timestamp)}</p>
-        </CardContent>
+        <div className="mb-4 flex-1 space-y-2">
+          <p className="line-clamp-2 text-xs text-ink-light">
+            {snippet ? snippet : "（No Content）"}
+          </p>
+          <p className="text-[10px] font-medium text-ink/40">
+            {formatRelativeTime(record.timestamp)}
+          </p>
+        </div>
 
-        <CardFooter className="w-full">
-          <Progress value={score} indicatorClassName={indicatorClassName} />
-        </CardFooter>
-      </Card>
+        <div className="w-full">
+          <Progress value={score} indicatorClassName={indicatorClassName} className="h-1.5" />
+        </div>
+      </div>
     </button>
   );
 }
-

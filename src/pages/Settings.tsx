@@ -1,25 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, PenTool, Save, Server, ShieldCheck, Sparkles, Wifi } from "lucide-react";
 import OpenAI from "openai";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatClientError } from "@/lib/ai/client";
-import { cn } from "@/lib/utils";
 import { isSameOriginAsApp, normalizeBaseUrl } from "@/lib/ai/normalizeBaseUrl";
 import { useSettingsStore } from "@/store/useSettingsStore";
 
@@ -33,6 +24,7 @@ const settingsSchema = z
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export default function Settings() {
+  const navigate = useNavigate();
   const location = useLocation();
   const apiKey = useSettingsStore((s) => s.apiKey);
   const baseUrl = useSettingsStore((s) => s.baseUrl);
@@ -103,36 +95,90 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <div className="mx-auto w-full max-w-xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>全局配置</CardTitle>
-            <CardDescription>配置你的 AI 接口信息（配置仅存储在本地浏览器；题库与面试记录存储在 IndexedDB）。</CardDescription>
-          </CardHeader>
+    <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-6 pb-3 pt-4">
+        {/* Navigation Bar */}
+        <nav className="flex items-center justify-between py-4">
+          <div className="flex items-center gap-8">
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="flex items-center gap-2 font-heading text-xl font-bold italic transition-colors hover:text-gold"
+            >
+              <PenTool className="h-4 w-4 text-gold" aria-hidden="true" />
+              Frontend Playground
+            </button>
+            <div className="hidden items-center gap-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-light md:flex">
+              <button type="button" onClick={() => navigate("/")} className="transition-colors hover:text-ink">
+                PRACTICE
+              </button>
+              <button type="button" onClick={() => navigate("/history")} className="transition-colors hover:text-ink">
+                HISTORY
+              </button>
+              <button type="button" onClick={() => navigate("/import")} className="transition-colors hover:text-ink">
+                IMPORT QUESTIONS
+              </button>
+            </div>
+          </div>
+        </nav>
 
-          <CardContent className="space-y-6">
-            <Alert variant="warning">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>您的 API Key 仅存储在本地浏览器中，绝不会上传至任何服务器。</AlertDescription>
-            </Alert>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="font-heading text-4xl font-bold">
+            System <span className="text-gold italic">Settings</span>
+          </h1>
+          <p className="mt-2 max-w-xl text-sm font-light text-ink-light">
+            Configure your AI connection. All keys are stored locally in your browser.
+          </p>
+        </div>
 
-            <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+        <div className="mx-auto w-full max-w-2xl">
+          <div className="border-sketch bg-white p-8">
+            <div className="mb-6 flex items-center gap-3 border-b border-ink/10 pb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+                <Server className="h-5 w-5 text-ink" />
+              </div>
+              <div>
+                <h3 className="font-heading text-lg font-bold text-ink">AI Provider Configuration</h3>
+                <p className="text-xs text-ink-light">Connect to OpenAI compatible services</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <Alert variant="warning" className="border-amber-200 bg-amber-50/50">
+                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-xs text-amber-800">
+                  Your API Key is stored securely in your browser's LocalStorage and is never sent to our servers.
+                </AlertDescription>
+              </Alert>
+            </div>
+
+            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <div className="space-y-2">
-                <Label htmlFor="baseUrl">API Base URL</Label>
-                <Input
-                  id="baseUrl"
-                  placeholder="https://api.openai.com/v1"
-                  autoComplete="off"
-                  {...form.register("baseUrl")}
-                />
-                {form.formState.errors.baseUrl?.message ? (
-                  <p className="text-sm text-red-600">{form.formState.errors.baseUrl.message}</p>
-                ) : null}
+                <Label htmlFor="baseUrl" className="text-xs font-bold uppercase tracking-wider text-ink-light">
+                  API Base URL
+                </Label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-light/50">
+                    <Wifi className="h-4 w-4" />
+                  </div>
+                  <Input
+                    id="baseUrl"
+                    placeholder="https://api.openai.com/v1"
+                    autoComplete="off"
+                    {...form.register("baseUrl")}
+                    className="border-slate-200 bg-slate-50/50 pl-10 font-code text-sm focus:border-gold focus:ring-gold"
+                  />
+                </div>
+                {form.formState.errors.baseUrl?.message && (
+                  <p className="text-xs font-medium text-red-500">{form.formState.errors.baseUrl.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="apiKey">API Key</Label>
+                <Label htmlFor="apiKey" className="text-xs font-bold uppercase tracking-wider text-ink-light">
+                  API Key
+                </Label>
                 <div className="relative">
                   <Input
                     id="apiKey"
@@ -140,66 +186,83 @@ export default function Settings() {
                     type={showApiKey ? "text" : "password"}
                     autoComplete="off"
                     {...form.register("apiKey")}
-                    className="pr-10"
+                    className="border-slate-200 bg-slate-50/50 pr-10 font-code text-sm focus:border-gold focus:ring-gold"
                   />
                   <button
                     type="button"
                     onClick={() => setShowApiKey((v) => !v)}
-                    className={cn(
-                      "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-500 hover:bg-slate-100",
-                    )}
-                    aria-label={showApiKey ? "隐藏 API Key" : "显示 API Key"}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-light hover:bg-slate-200/50"
+                    aria-label={showApiKey ? "Hide API Key" : "Show API Key"}
                   >
                     {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {form.formState.errors.apiKey?.message ? (
-                  <p className="text-sm text-red-600">{form.formState.errors.apiKey.message}</p>
-                ) : null}
+                {form.formState.errors.apiKey?.message && (
+                  <p className="text-xs font-medium text-red-500">{form.formState.errors.apiKey.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="model">模型</Label>
-                <Input id="model" placeholder="gpt-3.5-turbo" autoComplete="off" {...form.register("model")} />
-                {form.formState.errors.model?.message ? (
-                  <p className="text-sm text-red-600">{form.formState.errors.model.message}</p>
-                ) : null}
+                <Label htmlFor="model" className="text-xs font-bold uppercase tracking-wider text-ink-light">
+                  Model Name
+                </Label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-light/50">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <Input
+                    id="model"
+                    placeholder="gpt-3.5-turbo"
+                    autoComplete="off"
+                    {...form.register("model")}
+                    className="border-slate-200 bg-slate-50/50 pl-10 font-code text-sm focus:border-gold focus:ring-gold"
+                  />
+                </div>
+                {form.formState.errors.model?.message && (
+                  <p className="text-xs font-medium text-red-500">{form.formState.errors.model.message}</p>
+                )}
               </div>
 
-              <CardFooter className="gap-3 px-0">
+              <div className="flex items-center justify-between pt-4">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleTestConnection}
                   disabled={isTesting}
+                  className="border-sketch bg-white text-ink hover:bg-slate-50 hover:text-gold"
                 >
                   {isTesting ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      测试连接
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
                     </>
                   ) : (
-                    "测试连接"
+                    "Test Connection"
                   )}
                 </Button>
-                <Button type="submit" disabled={form.formState.isSubmitting || isTesting}>
-                  保存配置
-                </Button>
 
-                {showBackToHome ? (
-                  <Link
-                    to={fromPathname ?? "/"}
-                    className={
-                      "ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
-                    }
+                <div className="flex items-center gap-3">
+                  {showBackToHome && (
+                    <Link
+                      to={fromPathname ?? "/"}
+                      className="text-xs font-bold uppercase tracking-wider text-ink-light hover:text-ink hover:underline"
+                    >
+                      Cancel
+                    </Link>
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={form.formState.isSubmitting || isTesting}
+                    className="bg-ink text-white hover:bg-gold hover:text-ink font-bold uppercase tracking-wider"
                   >
-                    返回首页
-                  </Link>
-                ) : null}
-              </CardFooter>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Settings
+                  </Button>
+                </div>
+              </div>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

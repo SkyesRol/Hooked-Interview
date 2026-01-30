@@ -44,7 +44,7 @@ export default function JsonPaste({ onStage }: { onStage: (rawItems: RawInput[])
             "flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",
           )}
-          placeholder='例如：[{ "topic": "React", "difficulty": "Medium", "content": "..." , "tags": ["Hooks"] }]'
+          placeholder='例如：[{ "topic": "React", "type": "Code", "difficulty": "Medium", "content": "..." , "tags": ["Hooks"] }]'
         />
       </div>
 
@@ -78,7 +78,9 @@ export default function JsonPaste({ onStage }: { onStage: (rawItems: RawInput[])
                     ? obj.type
                     : typeof obj.questionType === "string"
                       ? obj.questionType
-                      : "",
+                      : typeof obj.Type === "string"
+                        ? obj.Type
+                        : "",
                 content,
                 tags: parseTags(obj.tags),
                 source: "json",
