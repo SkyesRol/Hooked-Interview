@@ -5,6 +5,8 @@ import History from "@/pages/History";
 import HistoryDetail from "@/pages/HistoryDetail";
 import Settings from "@/pages/Settings";
 import Import from "@/pages/Import";
+import Questions from "@/pages/Questions";
+import QuestionEdit from "@/pages/QuestionEdit";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import { Toaster } from "sonner";
 
@@ -44,6 +46,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Interview />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/questions"
+          element={
+            <ProtectedRoute>
+              <Questions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/questions/edit/:id"
+          element={
+            <ProtectedRoute>
+              <QuestionEdit />
             </ProtectedRoute>
           }
         />

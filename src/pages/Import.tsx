@@ -1,12 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { Database, FileJson, PenTool, Plus, Save } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Database, FileJson, Plus, Save } from "lucide-react";
 import { toast } from "sonner";
 import ManualEntryForm from "@/components/import/ManualEntryForm";
 import JsonPaste from "@/components/import/JsonPaste";
 import StagingList from "@/components/import/StagingList";
 import type { RawInput, StagedItem } from "@/components/import/types";
+import AppHeader from "@/components/shared/AppHeader";
 import { Button } from "@/components/ui/button";
+import { normalizeTopicSlug, resolveTech } from "@/constants/topics";
 import { db } from "@/lib/db";
 import type { QuestionItem } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -15,7 +16,6 @@ import { computeContentHash, validateAndCheckDuplicates } from "@/services/impor
 type ImportMode = "manual" | "json";
 
 export default function Import() {
-  const navigate = useNavigate();
   const [mode, setMode] = useState<ImportMode>("manual");
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [isCommitting, setIsCommitting] = useState(false);
@@ -26,11 +26,28 @@ export default function Import() {
     async (rawItems: RawInput[]) => {
       if (!rawItems.length) return;
 
-      const topics = Array.from(new Set(rawItems.map((r) => r.topic).filter(Boolean)));
-      const existingByTopic = await Promise.all(
-        topics.map((t) => db.questions.where("topic").equals(t.trim()).toArray()),
+      const rawTopics = Array.from(
+        new Set(rawItems.map((r) => (typeof r.topic === "string" ? r.topic.trim() : "")).filter(Boolean)),
       );
-      const existingFromDb = existingByTopic.flat().map((q) => ({ topic: q.topic, content: q.content }));
+
+      const candidates = new Set<string>();
+      for (const t of rawTopics) {
+        const resolved = resolveTech(t);
+        if (resolved) {
+          candidates.add(resolved.slug);
+          candidates.add(resolved.label);
+          continue;
+        }
+
+        const normalized = normalizeTopicSlug(t);
+        if (normalized) candidates.add(normalized);
+        candidates.add(t);
+      }
+
+      const existingRows = candidates.size
+        ? await db.questions.where("topic").anyOf(Array.from(candidates)).toArray()
+        : [];
+      const existingFromDb = existingRows.map((q) => ({ topic: q.topic, content: q.content }));
       const existingFromStaging = stagedItems.map((s) => ({ topic: s.payload.topic, content: s.payload.content }));
       const staged = await validateAndCheckDuplicates(rawItems, [...existingFromDb, ...existingFromStaging]);
 
@@ -58,12 +75,13 @@ export default function Import() {
       const now = Date.now();
       const toInsert: QuestionItem[] = await Promise.all(
         items.map(async (s) => {
-          const normalizedContent = s.payload.content.trim();
-          const contentHash = await computeContentHash(s.payload.topic, normalizedContent);
+          const normalizedTopic = normalizeTopicSlug(s.payload.topic);
+          const normalizedContent = s.payload.content.trim().replace(/\r\n/g, "\n");
+          const contentHash = await computeContentHash(normalizedTopic, normalizedContent);
           return {
             id: crypto.randomUUID(),
             contentHash,
-            topic: s.payload.topic,
+            topic: normalizedTopic,
             content: normalizedContent,
             questionType: s.payload.questionType,
             difficulty: s.payload.difficulty,
@@ -89,30 +107,7 @@ export default function Import() {
   return (
     <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 pb-3 pt-4">
-        {/* Navigation Bar */}
-        <nav className="flex items-center justify-between py-4">
-          <div className="flex items-center gap-8">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="flex items-center gap-2 font-heading text-xl font-bold italic transition-colors hover:text-gold"
-            >
-              <PenTool className="h-4 w-4 text-gold" aria-hidden="true" />
-              Frontend Playground
-            </button>
-            <div className="hidden items-center gap-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-light md:flex">
-              <button type="button" onClick={() => navigate("/")} className="transition-colors hover:text-ink">
-                PRACTICE
-              </button>
-              <button type="button" onClick={() => navigate("/history")} className="transition-colors hover:text-ink">
-                HISTORY
-              </button>
-              <button type="button" className="text-ink font-bold">
-                IMPORT QUESTIONS
-              </button>
-            </div>
-          </div>
-        </nav>
+        <AppHeader active="import" />
 
         {/* Page Header */}
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">

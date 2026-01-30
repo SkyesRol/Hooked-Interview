@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StagedItem } from "@/components/import/types";
+import { resolveTech } from "@/constants/topics";
 
 function statusBadge(item: StagedItem) {
   if (item.status === "valid") return <Badge variant="success">Valid</Badge>;
@@ -28,7 +29,7 @@ export default function StagingList({
         <Card key={item._tempId}>
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div className="min-w-0 space-y-1">
-              <CardTitle className="text-base">{item.payload.topic}</CardTitle>
+              <CardTitle className="text-base">{resolveTech(item.payload.topic)?.label ?? item.payload.topic}</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
                 {statusBadge(item)}
                 <Badge variant="secondary">{item.payload.difficulty}</Badge>

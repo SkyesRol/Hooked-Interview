@@ -1,5 +1,6 @@
 import type { Difficulty, QuestionType } from "@/lib/db";
 import type { ExistingQuestion, RawInput, StagedItem } from "@/components/import/types";
+import { normalizeTopicSlug } from "@/constants/topics";
 
 const ALLOWED_DIFFICULTIES = ["Simple", "Medium", "Hard"] as const;
 const ALLOWED_QUESTION_TYPES = ["Code", "Theory", "SystemDesign"] as const;
@@ -33,7 +34,7 @@ function coerceQuestionType(raw: unknown): QuestionType | null {
 }
 
 function makeDedupeKey(topic: string, content: string) {
-  return `${normalizeText(topic)}::${normalizeText(content)}`;
+  return `${normalizeText(normalizeTopicSlug(topic))}::${normalizeText(content)}`;
 }
 
 export async function computeContentHash(topic: string, content: string) {
@@ -50,13 +51,14 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
 
   const results: StagedItem[] = [];
   for (const raw of rawItems) {
-    const topic = normalizeText(raw.topic);
+    const rawTopic = normalizeText(raw.topic);
+    const topic = rawTopic ? normalizeTopicSlug(rawTopic) : "";
     const content = normalizeText(raw.content);
     const difficulty = coerceDifficulty(raw.difficulty);
     const questionType = coerceQuestionType(raw.questionType) ?? "Code";
     const tags = normalizeTags(raw.tags);
 
-    if (!topic) {
+    if (!rawTopic) {
       results.push({
         _tempId: crypto.randomUUID(),
         status: "error",

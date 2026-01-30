@@ -34,3 +34,23 @@ export const TOPIC_ICON: Record<string, LucideIcon> = Object.fromEntries(TECH_ST
 export function getTechBySlug(slug: string) {
   return TECH_STACKS.find((t) => t.slug === slug);
 }
+
+export function getTechByLabel(label: string) {
+  const needle = label.trim().toLowerCase();
+  return TECH_STACKS.find((t) => t.label.toLowerCase() === needle);
+}
+
+export function resolveTech(input: string) {
+  const raw = input.trim();
+  if (!raw) return null;
+  const bySlug = getTechBySlug(raw.toLowerCase());
+  if (bySlug) return bySlug;
+  const byLabel = getTechByLabel(raw);
+  if (byLabel) return byLabel;
+  return null;
+}
+
+export function normalizeTopicSlug(input: string) {
+  const resolved = resolveTech(input);
+  return resolved ? resolved.slug : input.trim();
+}

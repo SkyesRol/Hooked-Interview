@@ -1,206 +1,356 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
-import OpenAI from "openai";
-import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { Link, useLocation } from "react-router-dom";
+import { Loader2, RefreshCcw } from "lucide-react";
+import { useEffect, useMemo, useReducer, useState } from "react";
+import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { z } from "zod";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { formatClientError } from "@/lib/ai/client";
 import { cn } from "@/lib/utils";
-import { isSameOriginAsApp, normalizeBaseUrl } from "@/lib/ai/normalizeBaseUrl";
-import { useSettingsStore } from "@/store/useSettingsStore";
+import { AnalysisReport } from "@/components/interview/AnalysisReport";
+import { InterviewEditor } from "@/components/interview/Editor";
+import { InterviewStarter, type QuestionSource } from "@/components/interview/InterviewStarter";
+import { MainLayout } from "@/components/interview/MainLayout";
+import { QuestionCard } from "@/components/interview/QuestionCard";
+import { Button } from "@/components/ui/button";
+import { type Difficulty, type InterviewEvaluation } from "@/lib/db";
+import { evaluateAnswer, generateQuestion } from "@/lib/ai/client";
+import { useRecordStore } from "@/store/useRecordStore";
+import { useQuestionStore } from "@/store/useQuestionStore";
+import { getTechBySlug, TECH_STACKS } from "@/constants/topics";
 
-const settingsSchema = z
-  .object({
-    apiKey: z.string().min(1, "请输入 API Key"),
-    baseUrl: z.string().url("请输入有效的 URL (包含 http/https)"),
-    model: z.string().min(1, "请输入模型名称"),
-  });
+type InterviewStep = "INIT" | "LOADING_QUESTION" | "ANSWERING" | "ANALYZING" | "RESULT";
 
-type SettingsFormValues = z.infer<typeof settingsSchema>;
+type QuestionData = {
+  id: string;
+  content: string;
+  type: string;
+  difficulty: Difficulty;
+  source: QuestionSource;
+};
 
-export default function Settings() {
+function normalizeSource(input: unknown): QuestionSource {
+  if (input === "AI" || input === "Local") return input;
+  return "AI";
+}
+
+type CurrentSessionState = {
+  step: InterviewStep;
+  topic: string;
+  source: QuestionSource | null;
+  questionData: QuestionData | null;
+  userCode: string;
+  analysisResult: InterviewEvaluation | null;
+};
+
+type Action =
+  | { type: "RESET"; topic: string }
+  | { type: "SELECT_SOURCE"; source: QuestionSource }
+  | { type: "SET_STEP"; step: InterviewStep }
+  | { type: "SET_QUESTION"; question: QuestionData }
+  | { type: "SET_CODE"; code: string }
+  | { type: "SET_ANALYSIS"; analysis: InterviewEvaluation };
+
+function normalizeDifficulty(input: unknown): Difficulty {
+  if (input === "Simple" || input === "Medium" || input === "Hard") return input;
+  return "Medium";
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  if (Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function normalizeAnalysis(input: unknown): InterviewEvaluation {
+  const clamp = (n: unknown, min: number, max: number, fallback: number) => {
+    const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
+    return Math.min(max, Math.max(min, v));
+  };
+
+  const root = toRecord(input) ?? {};
+  const score = Math.round(clamp(root.score, 0, 100, 0));
+  const dimensions = toRecord(root.dimensions) ?? {};
+  const techTags = Array.isArray(root.techTags)
+    ? root.techTags.filter((t): t is string => typeof t === "string" && Boolean(t.trim()))
+    : [];
+  const comment = typeof root.comment === "string" ? root.comment : "";
+  const referenceAnswer = typeof root.referenceAnswer === "string" ? root.referenceAnswer : "";
+  return {
+    score,
+    techTags,
+    dimensions: {
+      accuracy: clamp(dimensions.accuracy, 0, 10, 0),
+      completeness: clamp(dimensions.completeness, 0, 10, 0),
+      logic: clamp(dimensions.logic, 0, 10, 0),
+      codeQuality: clamp(dimensions.codeQuality, 0, 10, 0),
+    },
+    comment,
+    referenceAnswer,
+  };
+}
+
+function reducer(state: CurrentSessionState, action: Action): CurrentSessionState {
+  switch (action.type) {
+    case "RESET":
+      return { step: "INIT", topic: action.topic, source: null, questionData: null, userCode: "", analysisResult: null };
+    case "SELECT_SOURCE":
+      return { ...state, source: action.source };
+    case "SET_STEP":
+      return { ...state, step: action.step };
+    case "SET_QUESTION":
+      return { ...state, questionData: action.question, userCode: "", analysisResult: null };
+    case "SET_CODE":
+      return { ...state, userCode: action.code };
+    case "SET_ANALYSIS":
+      return { ...state, analysisResult: action.analysis };
+    default:
+      return state;
+  }
+}
+
+export default function Interview() {
+  const { topic } = useParams();
   const location = useLocation();
-  const apiKey = useSettingsStore((s) => s.apiKey);
-  const baseUrl = useSettingsStore((s) => s.baseUrl);
-  const model = useSettingsStore((s) => s.model);
-  const setSettings = useSettingsStore((s) => s.setSettings);
+  const addRecord = useRecordStore((s) => s.addRecord);
+  const hasAnyQuestions = useQuestionStore((s) => s.hasAnyQuestions);
+  const getRandomQuestionByTopic = useQuestionStore((s) => s.getRandomQuestionByTopic);
+  const [localEnabled, setLocalEnabled] = useState(false);
 
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
+  const displayTopic = useMemo(() => {
+    if (!topic) return "";
+    const decoded = decodeURIComponent(topic);
+    const bySlug = getTechBySlug(decoded.toLowerCase());
+    if (bySlug) return bySlug.label;
+    const byLabel = TECH_STACKS.find((t) => t.label.toLowerCase() === decoded.toLowerCase());
+    return byLabel ? byLabel.label : decoded;
+  }, [topic]);
 
-  const fromPathname = (location.state as { from?: string } | null)?.from;
-  const showBackToHome = useMemo(() => fromPathname === "/" || Boolean(fromPathname), [fromPathname]);
-
-  const form = useForm<SettingsFormValues>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: { apiKey, baseUrl, model },
-    mode: "onBlur",
+  const [state, dispatch] = useReducer(reducer, {
+    step: "INIT",
+    topic: displayTopic,
+    source: null,
+    questionData: null,
+    userCode: "",
+    analysisResult: null,
   });
+
+  const retryQuestion = useMemo(() => {
+    const root = toRecord(location.state);
+    if (!root || root.retryMode !== true) return null;
+    const fixed = toRecord(root.fixedQuestion);
+    if (!fixed) return null;
+    const content = fixed.content;
+    if (typeof content !== "string" || !content.trim()) return null;
+    const q: QuestionData = {
+      id: typeof fixed.id === "string" ? fixed.id : crypto.randomUUID(),
+      content,
+      type: typeof fixed.type === "string" ? fixed.type : "Code",
+      difficulty: normalizeDifficulty(fixed.difficulty),
+      source: normalizeSource(fixed.source),
+    };
+    return q;
+  }, [location.state]);
 
   useEffect(() => {
-    form.reset({ apiKey, baseUrl, model });
-  }, [apiKey, baseUrl, model, form]);
+    dispatch({ type: "RESET", topic: displayTopic });
+    if (!retryQuestion) return;
+    dispatch({ type: "SELECT_SOURCE", source: retryQuestion.source });
+    dispatch({ type: "SET_QUESTION", question: retryQuestion });
+    dispatch({ type: "SET_STEP", step: "ANSWERING" });
+  }, [displayTopic, retryQuestion]);
 
-  const handleTestConnection = async () => {
-    const isValid = await form.trigger();
-    if (!isValid) return;
+  useEffect(() => {
+    let mounted = true;
+    hasAnyQuestions().then((enabled) => {
+      if (!mounted) return;
+      setLocalEnabled(enabled);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [hasAnyQuestions]);
 
-    const values = form.getValues();
-    const normalizedBaseUrl = normalizeBaseUrl(values.baseUrl);
-    if (isSameOriginAsApp(normalizedBaseUrl)) {
-      toast.error("Base URL 指向了当前前端站点，请填写真实的 API Host（例如 https://api.openai.com/v1）");
-      return;
-    }
+  const progress = useMemo(() => {
+    const map: Record<InterviewStep, number> = {
+      INIT: 0,
+      LOADING_QUESTION: 25,
+      ANSWERING: 50,
+      ANALYZING: 75,
+      RESULT: 100,
+    };
+    return map[state.step];
+  }, [state.step]);
 
-    setIsTesting(true);
+  const fetchQuestion = async (source: QuestionSource) => {
+    dispatch({ type: "SET_STEP", step: "LOADING_QUESTION" });
     try {
-      const client = new OpenAI({
-        apiKey: values.apiKey,
-        baseURL: normalizedBaseUrl,
-        dangerouslyAllowBrowser: true,
-      });
+      if (source === "AI") {
+        const generated = await generateQuestion(displayTopic || "Frontend");
+        const q: QuestionData = {
+          id: crypto.randomUUID(),
+          content: generated.question,
+          type: generated.type,
+          difficulty: normalizeDifficulty(generated.difficulty),
+          source: "AI",
+        };
+        dispatch({ type: "SET_QUESTION", question: q });
+        dispatch({ type: "SET_STEP", step: "ANSWERING" });
+        return;
+      }
 
-      const payloadForLog = {
-        model: values.model,
-        messages: [{ role: "user", content: "hi" }],
+      const picked = await getRandomQuestionByTopic(displayTopic, state.questionData?.id);
+      if (!picked) throw new Error("本地题库为空或当前 Topic 无题目");
+      const q: QuestionData = {
+        id: picked.id,
+        content: picked.content,
+        type: picked.questionType ?? "Code",
+        difficulty: picked.difficulty,
+        source: "Local",
       };
-
-      console.log("[Test Connection] chat.completions payload:", payloadForLog);
-
-      await client.chat.completions.create({
-        model: values.model,
-        messages: [{ role: "user", content: "hi" }],
-      });
-
-      toast.success("连接成功，模型可用");
+      dispatch({ type: "SET_QUESTION", question: q });
+      dispatch({ type: "SET_STEP", step: "ANSWERING" });
     } catch (err) {
-      toast.error(`连接失败: ${formatClientError(err)}`);
-      console.error(err);
-    } finally {
-      setIsTesting(false);
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(message);
+      dispatch({ type: "SET_STEP", step: "INIT" });
     }
   };
 
-  const onSubmit = (values: SettingsFormValues) => {
-    const normalized = { ...values, baseUrl: normalizeBaseUrl(values.baseUrl) };
-    setSettings(normalized);
-    form.setValue("baseUrl", normalized.baseUrl, { shouldDirty: false, shouldTouch: true, shouldValidate: true });
-    toast.success("设置已保存");
+  const handleSelectSource = async (source: QuestionSource) => {
+    dispatch({ type: "SELECT_SOURCE", source });
+    await fetchQuestion(source);
+  };
+
+  const handleSubmit = async () => {
+    if (!state.questionData) return;
+    dispatch({ type: "SET_STEP", step: "ANALYZING" });
+    try {
+      const result = await evaluateAnswer({
+        topic: displayTopic || "Frontend",
+        question: state.questionData.content,
+        userAnswer: state.userCode,
+      });
+      const evaluation = normalizeAnalysis(result);
+      dispatch({ type: "SET_ANALYSIS", analysis: evaluation });
+      dispatch({ type: "SET_STEP", step: "RESULT" });
+
+      await addRecord({
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        topic: displayTopic || "Frontend",
+        sourceType: state.questionData.source,
+        questionId: state.questionData.id,
+        difficulty: state.questionData.difficulty,
+        questionType: state.questionData.type,
+        questionContent: state.questionData.content,
+        userAnswer: state.userCode,
+        evaluation,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`评分失败: ${message}`);
+      dispatch({ type: "SET_STEP", step: "ANSWERING" });
+    }
+  };
+
+  const handleNext = async () => {
+    if (!state.source) {
+      dispatch({ type: "SET_STEP", step: "INIT" });
+      return;
+    }
+    await fetchQuestion(state.source);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <div className="mx-auto w-full max-w-xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>全局配置</CardTitle>
-            <CardDescription>配置你的 AI 接口信息（配置仅存储在本地浏览器；题库与面试记录存储在 IndexedDB）。</CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-6">
-            <Alert variant="warning">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>您的 API Key 仅存储在本地浏览器中，绝不会上传至任何服务器。</AlertDescription>
-            </Alert>
-
-            <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
-              <div className="space-y-2">
-                <Label htmlFor="baseUrl">API Base URL</Label>
-                <Input
-                  id="baseUrl"
-                  placeholder="https://api.openai.com/v1"
-                  autoComplete="off"
-                  {...form.register("baseUrl")}
-                />
-                {form.formState.errors.baseUrl?.message ? (
-                  <p className="text-sm text-red-600">{form.formState.errors.baseUrl.message}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="apiKey">API Key</Label>
-                <div className="relative">
-                  <Input
-                    id="apiKey"
-                    placeholder="sk-..."
-                    type={showApiKey ? "text" : "password"}
-                    autoComplete="off"
-                    {...form.register("apiKey")}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey((v) => !v)}
-                    className={cn(
-                      "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-500 hover:bg-slate-100",
-                    )}
-                    aria-label={showApiKey ? "隐藏 API Key" : "显示 API Key"}
-                  >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+    <>
+      <MainLayout
+        topicLabel={displayTopic}
+        progress={progress}
+        isGenerating={state.step === "LOADING_QUESTION" && state.source === "AI"}
+        headerRight={
+          state.step !== "INIT" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleNext}
+              disabled={
+                state.step === "LOADING_QUESTION" ||
+                state.step === "ANALYZING" ||
+                (state.step === "ANSWERING" && !state.questionData)
+              }
+              className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-transparent hover:text-ink/70 hover:underline disabled:opacity-50"
+            >
+              <RefreshCcw className={cn("mr-2 h-3 w-3", state.step === "LOADING_QUESTION" && "animate-spin")} />
+              {state.step === "LOADING_QUESTION"
+                ? state.source === "AI"
+                  ? "Drafting..."
+                  : "Loading..."
+                : "Change Question"}
+            </Button>
+          ) : null
+        }
+        question={
+          state.questionData ? (
+            <QuestionCard
+              title="Question"
+              content={state.questionData.content}
+              difficulty={state.questionData.difficulty}
+              meta={`${state.questionData.source} · ${state.questionData.type}`}
+            />
+          ) : (
+            <InterviewStarter onSelect={handleSelectSource} localEnabled={localEnabled} />
+          )
+        }
+        editor={
+          <div className="flex h-full flex-col gap-4">
+            {/* Editor Area - Main Writing Space */}
+            <div className="flex-1 overflow-hidden rounded-sm border border-ink/10 bg-white shadow-sm transition-all hover:shadow-md">
+              <InterviewEditor
+                value={state.userCode}
+                onChange={(code) => dispatch({ type: "SET_CODE", code })}
+                disabled={state.step !== "ANSWERING"}
+              />
+            </div>
+          </div>
+        }
+        analysis={
+          (state.step === "ANALYZING" || state.analysisResult) ? (
+            <div className="h-full overflow-hidden rounded-sm border border-ink/10 bg-white shadow-sm transition-all hover:shadow-md">
+              {state.step === "ANALYZING" ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-50/50 text-sm text-slate-600 p-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-ink" />
+                  <span className="font-sketch text-lg tracking-wide">Analyzing your sketch...</span>
                 </div>
-                {form.formState.errors.apiKey?.message ? (
-                  <p className="text-sm text-red-600">{form.formState.errors.apiKey.message}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="model">模型</Label>
-                <Input id="model" placeholder="gpt-3.5-turbo" autoComplete="off" {...form.register("model")} />
-                {form.formState.errors.model?.message ? (
-                  <p className="text-sm text-red-600">{form.formState.errors.model.message}</p>
-                ) : null}
-              </div>
-
-              <CardFooter className="gap-3 px-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleTestConnection}
-                  disabled={isTesting}
-                >
-                  {isTesting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      测试连接
-                    </>
-                  ) : (
-                    "测试连接"
-                  )}
-                </Button>
-                <Button type="submit" disabled={form.formState.isSubmitting || isTesting}>
-                  保存配置
-                </Button>
-
-                {showBackToHome ? (
-                  <Link
-                    to={fromPathname ?? "/"}
-                    className={
-                      "ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
-                    }
-                  >
-                    返回首页
-                  </Link>
-                ) : null}
-              </CardFooter>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+              ) : (
+                <AnalysisReport evaluation={state.analysisResult!} />
+              )}
+            </div>
+          ) : null
+        }
+        footer={
+          <>
+            <Button
+              onClick={handleSubmit}
+              disabled={state.step !== "ANSWERING" || !state.questionData}
+              className="h-12 rounded-none bg-ink px-8 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all hover:bg-ink/90 hover:shadow-lg disabled:opacity-50"
+            >
+              {state.step === "ANALYZING" ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                "Submit Sketch"
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleNext}
+              disabled={!state.source || state.step === "ANALYZING"}
+              className="h-12 rounded-none border-ink bg-white px-8 text-xs font-bold uppercase tracking-[0.2em] text-ink transition-all hover:bg-ink hover:text-white disabled:opacity-50"
+            >
+              Next Question
+            </Button>
+          </>
+        }
+      />
+    </>
   );
 }

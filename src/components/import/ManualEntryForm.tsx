@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { TOPICS } from "@/constants/topics";
+import { TECH_STACKS } from "@/constants/topics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ function parseTags(raw: string) {
 }
 
 export default function ManualEntryForm({ onStage }: { onStage: (rawItems: RawInput[]) => Promise<void> | void }) {
-  const defaultTopic = useMemo(() => (TOPICS[0] ? String(TOPICS[0]) : ""), []);
+  const defaultTopic = useMemo(() => (TECH_STACKS[0]?.slug ? String(TECH_STACKS[0].slug) : ""), []);
   const [topic, setTopic] = useState(defaultTopic);
   const [difficulty, setDifficulty] = useState<(typeof DIFFICULTY_OPTIONS)[number]>("Medium");
   const [questionType, setQuestionType] = useState<(typeof QUESTION_TYPE_OPTIONS)[number]>("Code");
@@ -38,9 +38,9 @@ export default function ManualEntryForm({ onStage }: { onStage: (rawItems: RawIn
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",
             )}
           >
-            {TOPICS.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {TECH_STACKS.map((t) => (
+              <option key={t.slug} value={t.slug}>
+                {t.label}
               </option>
             ))}
           </select>

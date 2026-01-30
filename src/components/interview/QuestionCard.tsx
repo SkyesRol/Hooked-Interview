@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Difficulty } from "@/lib/db";
-import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 
 export function QuestionCard({

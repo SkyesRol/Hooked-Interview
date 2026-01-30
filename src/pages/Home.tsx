@@ -1,10 +1,11 @@
-import { PenTool, Github, Settings as SettingsIcon } from "lucide-react";
+import { Github, PenTool, Settings as SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { TECH_STACKS, type TechStack } from "@/constants/topics";
 import MasteryMatrix from "@/components/dashboard/MasteryMatrix";
 import StatsOverview from "@/components/dashboard/StatsOverview";
+import AppHeader from "@/components/shared/AppHeader";
 import { cn } from "@/lib/utils";
 import { useRecordStore } from "@/store/useRecordStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
@@ -125,57 +126,39 @@ export default function Home() {
   return (
     <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-6 pb-3 pt-4">
-        <nav className="flex items-center justify-between py-4">
-          <div className="flex items-center gap-8">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="flex items-center gap-2 font-heading text-xl font-bold italic transition-colors hover:text-gold"
-            >
-              <PenTool className="h-4 w-4 text-gold" aria-hidden="true" />
-              Frontend Playground
-            </button>
-            <div className="hidden items-center gap-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-light md:flex">
-              <button type="button" onClick={handleJumpToMatrix} className="transition-colors hover:text-ink">
-                PRACTICE
-              </button>
-              <button type="button" onClick={() => navigate("/history")} className="transition-colors hover:text-ink">
-                HISTORY
-              </button>
-              <button type="button" onClick={() => navigate("/import")} className="transition-colors hover:text-ink">
-                IMPORT QUESTIONS
+        <AppHeader
+          onPractice={handleJumpToMatrix}
+          right={
+            <div className="flex items-center gap-4">
+              <span
+                role="status"
+                aria-label={hasApiKey ? "API 已连接" : "API 未配置"}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.2em]",
+                  hasApiKey ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700",
+                )}
+              >
+                <span className={cn("h-1.5 w-1.5 rounded-full", hasApiKey ? "bg-emerald-500" : "bg-rose-500")} aria-hidden />
+                <span className="hidden sm:inline">{hasApiKey ? "API ACCESS GRANTED" : "API ACCESS REQUIRED"}</span>
+                <span className="sm:hidden">API</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate("/settings", { state: { from: "/" } })}
+                className={cn(
+                  "inline-flex h-8 items-center justify-center gap-2 rounded border border-ink bg-white px-2",
+                  "text-[10px] font-bold uppercase tracking-[0.15em] text-ink",
+                  "transition-colors duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-ink hover:text-white",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2",
+                )}
+                aria-label="打开设置"
+              >
+                <SettingsIcon className="h-4 w-4" aria-hidden />
+                <span className="hidden md:inline">Settings</span>
               </button>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span
-              role="status"
-              aria-label={hasApiKey ? "API 已连接" : "API 未配置"}
-              className={cn(
-                "inline-flex items-center gap-2 rounded border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.2em]",
-                hasApiKey ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700",
-              )}
-            >
-              <span className={cn("h-1.5 w-1.5 rounded-full", hasApiKey ? "bg-emerald-500" : "bg-rose-500")} aria-hidden />
-              <span className="hidden sm:inline">{hasApiKey ? "API ACCESS GRANTED" : "API ACCESS REQUIRED"}</span>
-              <span className="sm:hidden">API</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => navigate("/settings", { state: { from: "/" } })}
-              className={cn(
-                "inline-flex h-8 items-center justify-center gap-2 rounded border border-ink bg-white px-2",
-                "text-[10px] font-bold uppercase tracking-[0.15em] text-ink",
-                "transition-colors duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-ink hover:text-white",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2",
-              )}
-              aria-label="打开设置"
-            >
-              <SettingsIcon className="h-4 w-4" aria-hidden />
-              <span className="hidden md:inline">Settings</span>
-            </button>
-          </div>
-        </nav>
+          }
+        />
 
         <div className="mb-6">
           <h1 className="font-heading text-4xl font-bold">

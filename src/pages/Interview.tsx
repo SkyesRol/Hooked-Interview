@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AnalysisReport } from "@/components/interview/AnalysisReport";
 import { InterviewEditor } from "@/components/interview/Editor";
+import { InterviewStarter, type QuestionSource } from "@/components/interview/InterviewStarter";
 import { MainLayout } from "@/components/interview/MainLayout";
 import { QuestionCard } from "@/components/interview/QuestionCard";
-import { SourceSelectorDialog, type QuestionSource } from "@/components/interview/SourceSelectorDialog";
 import { Button } from "@/components/ui/button";
 import { type Difficulty, type InterviewEvaluation } from "@/lib/db";
 import { evaluateAnswer, generateQuestion } from "@/lib/ai/client";
@@ -260,8 +260,6 @@ export default function Interview() {
 
   return (
     <>
-      <SourceSelectorDialog open={state.step === "INIT"} localEnabled={localEnabled} onSelect={handleSelectSource} />
-
       <MainLayout
         topicLabel={displayTopic}
         progress={progress}
@@ -289,15 +287,16 @@ export default function Interview() {
           ) : null
         }
         question={
-          <QuestionCard
-            title={state.questionData ? "Question" : "Ready"}
-            content={
-              state.questionData?.content ||
-              "Select a source to begin your interview session.\n\n- **AI Mode**: Real-time generation & grading\n- **Local Mode**: Random pick from IndexedDB"
-            }
-            difficulty={state.questionData?.difficulty ?? "Medium"}
-            meta={state.questionData ? `${state.questionData.source} · ${state.questionData.type}` : undefined}
-          />
+          state.questionData ? (
+            <QuestionCard
+              title="Question"
+              content={state.questionData.content}
+              difficulty={state.questionData.difficulty}
+              meta={`${state.questionData.source} · ${state.questionData.type}`}
+            />
+          ) : (
+            <InterviewStarter onSelect={handleSelectSource} localEnabled={localEnabled} />
+          )
         }
         editor={
           <div className="flex h-full flex-col gap-4">

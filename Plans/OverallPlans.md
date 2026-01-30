@@ -46,9 +46,10 @@
         *   *> Tech Spec*: 采用 **双模式编辑器 (Dual Mode Editor)**。统一提供 Toggle 按钮允许用户在轻量级 `Textarea` (SimpleEditor) 和 `Monaco Editor` 之间切换。默认使用 `Textarea` 以确保极速响应和统一体验。移动端强制降级为 Textarea。
     *   **Bottom**: "提交回答" 按钮。
 *   **交互逻辑**:
-    1.  **出题阶段**:
-        *   模式 A (AI 生成): 调用 LLM 生成题目。
-        *   模式 B (本地题库): 从 IndexedDB 中随机抽取。
+    1.  **出题阶段 (INIT)**:
+        *   进入页面展示 `InterviewStarter`，提供 "AI Auto-Generate" 和 "Local Database" 两个非阻塞选项。
+        *   **模式 A (AI 生成)**: 用户点击后调用 LLM 生成题目。
+        *   **模式 B (本地题库)**: 用户点击后从 IndexedDB 中随机抽取。
     2.  **AI 解析阶段 (Robust Parsing)**:
         *   *> Reasoning*: LLM 输出很不稳定，经常会在 JSON 前后添加 "Here is your JSON" 或 Markdown 代码块。
         *   **策略**: 前端接收到响应后，**不要直接 parse**。必须使用 正则表达式 提取第一个 `{` 和最后一个 `}` 之间的内容，再进行 `JSON.parse`。
@@ -120,12 +121,14 @@ interface SettingsState {
 
 ```ts
 export type Difficulty = 'Simple' | 'Medium' | 'Hard';
+export type QuestionType = "Code" | "Theory" | "SystemDesign";
 
 export interface QuestionItem {
   id: string;          // UUID
   contentHash: string; // [New] 内容指纹，用于去重
   topic: string;       // e.g. 'Vue', 'React', 'Algorithm'
   content: string;     // Markdown description
+  questionType?: QuestionType; // [New] 题目类型
   difficulty: Difficulty;
   source: 'user-import' | 'ai-saved'; // 标记来源
   tags?: string[];     // e.g. ['Hooks', 'VirtualDOM']
@@ -222,6 +225,7 @@ interface InterviewRecord {
 ~~~text
 src/
 ├── assets/
+│   └── react.svg
 ├── components/
 │   ├── dashboard/           # 首页仪表盘（HUD）
 │   │   ├── MasteryMatrix.tsx
@@ -235,9 +239,9 @@ src/
 │   │   │   ├── MonacoWrapper.tsx
 │   │   │   └── SimpleEditor.tsx
 │   │   ├── AnalysisReport.tsx
+│   │   ├── InterviewStarter.tsx # 面试启动器 (AI/Local 选择)
 │   │   ├── MainLayout.tsx   # 可复用布局（支持自定义 backTo/title）
-│   │   ├── QuestionCard.tsx
-│   │   └── SourceSelectorDialog.tsx
+│   │   └── QuestionCard.tsx
 │   ├── import/              # 智能导入题库模块
 │   │   ├── JsonPaste.tsx
 │   │   ├── ManualEntryForm.tsx
@@ -246,15 +250,27 @@ src/
 │   ├── shared/
 │   │   ├── MarkdownRenderer.tsx
 │   │   └── ProtectedRoute.tsx
-│   ├── ui/                  # 轻量 Shadcn 风格基础组件（button/card/badge/progress...）
-│   └── Empty.tsx
+│   └── ui/                  # 轻量 Shadcn 风格基础组件
+│       ├── alert.tsx
+│       ├── badge.tsx
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── input.tsx
+│       ├── label.tsx
+│       ├── progress.tsx
+│       ├── select.tsx
+│       └── tooltip.tsx
 ├── constants/
 │   └── topics.ts
 ├── hooks/
 │   ├── useMediaQuery.ts
 │   └── useTheme.ts
 ├── lib/
-│   ├── ai/                  # AI 逻辑拆分（client/prompts/parser...）
+│   ├── ai/                  # AI 逻辑拆分
+│   │   ├── client.ts
+│   │   ├── normalizeBaseUrl.ts
+│   │   ├── parser.ts
+│   │   └── prompts.ts
 │   ├── db.ts                # Dexie(IndexedDB) Schema 与类型定义
 │   └── utils.ts
 ├── services/
@@ -272,7 +288,8 @@ src/
 │   └── useSettingsStore.ts
 ├── App.tsx                  # 当前路由配置在这里（尚未抽到 src/router）
 ├── main.tsx
-└── index.css
+├── index.css
+└── vite-env.d.ts
 ~~~
 
 ---

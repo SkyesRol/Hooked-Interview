@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Loader2, PenTool, Save, Server, ShieldCheck, Sparkles, Wifi } from "lucide-react";
+import { Eye, EyeOff, Loader2, Save, Server, ShieldCheck, Sparkles, Wifi } from "lucide-react";
 import OpenAI from "openai";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
+import AppHeader from "@/components/shared/AppHeader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,6 @@ const settingsSchema = z
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export default function Settings() {
-  const navigate = useNavigate();
   const location = useLocation();
   const apiKey = useSettingsStore((s) => s.apiKey);
   const baseUrl = useSettingsStore((s) => s.baseUrl);
@@ -97,30 +97,7 @@ export default function Settings() {
   return (
     <div className="min-h-screen overflow-x-hidden paper-surface font-ui text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-6 pb-3 pt-4">
-        {/* Navigation Bar */}
-        <nav className="flex items-center justify-between py-4">
-          <div className="flex items-center gap-8">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="flex items-center gap-2 font-heading text-xl font-bold italic transition-colors hover:text-gold"
-            >
-              <PenTool className="h-4 w-4 text-gold" aria-hidden="true" />
-              Frontend Playground
-            </button>
-            <div className="hidden items-center gap-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-light md:flex">
-              <button type="button" onClick={() => navigate("/")} className="transition-colors hover:text-ink">
-                PRACTICE
-              </button>
-              <button type="button" onClick={() => navigate("/history")} className="transition-colors hover:text-ink">
-                HISTORY
-              </button>
-              <button type="button" onClick={() => navigate("/import")} className="transition-colors hover:text-ink">
-                IMPORT QUESTIONS
-              </button>
-            </div>
-          </div>
-        </nav>
+        <AppHeader />
 
         {/* Header */}
         <div className="mb-8">

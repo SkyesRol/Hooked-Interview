@@ -15,13 +15,13 @@ Interview 页面 (`src/pages/Interview.tsx`) 是 "Tech Mastery Matrix" 的核心
 
 ## 2. 交互流程 (Workflow)
 
-页面采用严格的“状态机”模式来管理面试流程，确保用户体验的连贯性。
+页面采用严格的“状态机”模式来管理面试流程，但优化了初始体验，允许用户先进入沉浸式布局。
 
 ```mermaid
 graph TD
-    Start[进入页面 /interview/:topic] --> Init{选择题目来源}
-    Init -->|AI Mode| Loading[AI 生成题目中...]
-    Init -->|Local Mode| LocalFetch[本地随机抽取]
+    Start[进入页面 /interview/:topic] --> Init[展示 Starter 面板]
+    Init -->|Select AI Mode| Loading[AI 生成题目中...]
+    Init -->|Select Local Mode| LocalFetch[本地随机抽取]
     
     Loading --> Answering[答题阶段]
     LocalFetch --> Answering
@@ -48,9 +48,12 @@ graph TD
 *   **功能**: 提供统一的顶部导航（返回按钮、进度条）、侧边栏（题目信息）和主工作区（编辑器/结果）。
 *   **进度条**: 顶部进度条根据当前 `step` 动态变化 (0% -> 25% -> 50% -> 75% -> 100%)。
 
-### 3.2 题目卡片 (`QuestionCard`)
+### 3.2 启动器与题目卡片 (`InterviewStarter` & `QuestionCard`)
 *   **位置**: 布局左侧 (Desktop) 或 顶部 (Mobile)。
-*   **内容**:
+*   **状态切换**:
+    *   **INIT 阶段**: 显示 `InterviewStarter`。提供 "AI Auto-Generate" 和 "Local Database" 的非阻塞式选择面板。
+    *   **ANSWERING 阶段**: 显示 `QuestionCard`。
+*   **QuestionCard 内容**:
     *   **Meta**: 题目来源 (AI/Local)、类型 (Code/Theory)、难度 (Simple/Medium/Hard)。
     *   **Content**: 支持 Markdown 渲染的题目描述。
 
