@@ -1,14 +1,14 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "@/pages/Home";
 import Interview from "@/pages/Interview";
-import InterviewBossSetup from "@/pages/InterviewBossSetup";
-import InterviewBossSession from "@/pages/InterviewBossSession";
-import History from "@/pages/History";
-import HistoryDetail from "@/pages/HistoryDetail";
+import InterviewBossSetup from "@/pages/boss/InterviewBossSetup";
+import InterviewBossSession from "@/pages/boss/InterviewBossSession";
+import History from "@/pages/history/History";
+import HistoryDetail from "@/pages/history/HistoryDetail";
 import Settings from "@/pages/Settings";
 import Import from "@/pages/Import";
-import Questions from "@/pages/Questions";
-import QuestionEdit from "@/pages/QuestionEdit";
+import Questions from "@/pages/questions/Questions";
+import QuestionEdit from "@/pages/questions/QuestionEdit";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import { Toaster } from "sonner";
 

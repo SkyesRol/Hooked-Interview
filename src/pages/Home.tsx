@@ -176,6 +176,7 @@ export default function Home() {
         <main className="grid flex-1 min-h-0 grid-cols-1 gap-4 lg:grid-cols-12">
           <div className="flex flex-col gap-4 lg:col-span-2">
             <div className="border-sketch bg-white p-5 transition-all duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:-translate-y-0.5">
+
               <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ink-light">
                 快速开始
               </span>
