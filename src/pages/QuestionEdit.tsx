@@ -15,7 +15,7 @@ import { computeContentHash } from "@/services/importValidation";
 
 const questionFormSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
-  questionType: z.enum(["Code", "Theory", "SystemDesign"]),
+  questionType: z.enum(["Coding", "Concept", "Design", "Scenario"]),
   difficulty: z.enum(["Simple", "Medium", "Hard"]),
   content: z.string().min(10, "Question content must be at least 10 characters"),
   tags: z.array(z.string()).max(5, "Max 5 tags allowed"),
@@ -49,7 +49,7 @@ export default function QuestionEdit() {
     resolver: zodResolver(questionFormSchema),
     defaultValues: {
       topic: defaultTopic,
-      questionType: "Code",
+      questionType: "Coding",
       difficulty: "Medium",
       content: "",
       tags: [],
@@ -81,7 +81,7 @@ export default function QuestionEdit() {
         setSourceLabel(found.source ?? null);
         form.reset({
           topic: found.topic ? normalizeTopicSlug(found.topic) : defaultTopic,
-          questionType: (found.questionType ?? "Code") as QuestionType,
+          questionType: (found.questionType ?? "Coding") as QuestionType,
           difficulty: found.difficulty as Difficulty,
           content: found.content ?? "",
           tags: normalizeTags(found.tags),
@@ -244,9 +244,10 @@ export default function QuestionEdit() {
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent className="border-sketch bg-white">
-                    <SelectItem value="Code">Code</SelectItem>
-                    <SelectItem value="Theory">Theory</SelectItem>
-                    <SelectItem value="SystemDesign">SystemDesign</SelectItem>
+                    <SelectItem value="Coding">Coding</SelectItem>
+                    <SelectItem value="Concept">Concept</SelectItem>
+                    <SelectItem value="Design">Design</SelectItem>
+                    <SelectItem value="Scenario">Scenario</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

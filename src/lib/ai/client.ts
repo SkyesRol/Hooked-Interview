@@ -2,8 +2,8 @@ import OpenAI from "openai";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { isSameOriginAsApp, normalizeBaseUrl } from "./normalizeBaseUrl";
 import { cleanAndParseJSON } from "./parser";
-import type { EvaluateAnswerResponse, GenerateQuestionResponse } from "./prompts";
-import { buildEvaluateAnswerMessages, buildGenerateQuestionMessages } from "./prompts";
+import type { EvaluateAnswerResponse, GenerateFollowUpQuestionResponse, GenerateQuestionResponse } from "./prompts";
+import { buildEvaluateAnswerMessages, buildGenerateFollowUpQuestionMessages, buildGenerateQuestionMessages } from "./prompts";
 
 function getClient() {
     const { apiKey, baseUrl } = useSettingsStore.getState();
@@ -32,7 +32,10 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, controller: Abort
     }
 }
 
-export async function generateQuestion(topic: string, opts?: { timeoutMs?: number }) {
+export async function generateQuestion(
+    topic: string,
+    opts?: { timeoutMs?: number; difficulty?: GenerateQuestionResponse["difficulty"]; type?: GenerateQuestionResponse["type"] },
+) {
     const { model } = useSettingsStore.getState();
     const client = getClient();
     const controller = new AbortController();
@@ -40,7 +43,7 @@ export async function generateQuestion(topic: string, opts?: { timeoutMs?: numbe
         const request = client.chat.completions.create(
             {
                 model,
-                messages: buildGenerateQuestionMessages(topic),
+                messages: buildGenerateQuestionMessages(topic, { difficulty: opts?.difficulty, type: opts?.type }),
                 temperature: 0.7,
                 max_tokens: 800,
             },
@@ -78,6 +81,51 @@ export async function evaluateAnswer(
         const text = result.choices?.[0]?.message?.content ?? "";
         if (!text) throw new Error("AI 未返回内容");
         return cleanAndParseJSON<EvaluateAnswerResponse>(text);
+    } catch (err) {
+        throw new Error(formatClientError(err));
+    }
+}
+
+export async function generateFollowUpQuestion(
+    args: {
+        topic: string;
+        parentQuestion: string;
+        parentAnswer: string;
+        evaluation: EvaluateAnswerResponse;
+        mode: "remedial" | "deepen";
+        focus: string;
+        depth: number;
+        maxDepth: number;
+    },
+    opts?: { timeoutMs?: number },
+) {
+    const { model } = useSettingsStore.getState();
+    const client = getClient();
+    const controller = new AbortController();
+    try {
+        const request = client.chat.completions.create(
+            {
+                model,
+                messages: buildGenerateFollowUpQuestionMessages({
+                    topic: args.topic,
+                    parentQuestion: args.parentQuestion,
+                    parentAnswer: args.parentAnswer,
+                    evaluation: args.evaluation,
+                    mode: args.mode,
+                    focus: args.focus,
+                    depth: args.depth,
+                    maxDepth: args.maxDepth,
+                }),
+                temperature: 0.5,
+                max_tokens: 800,
+            },
+            { signal: controller.signal },
+        );
+
+        const result = await withTimeout(request, opts?.timeoutMs ?? 45_000, controller);
+        const text = result.choices?.[0]?.message?.content ?? "";
+        if (!text) throw new Error("AI 未返回内容");
+        return cleanAndParseJSON<GenerateFollowUpQuestionResponse>(text);
     } catch (err) {
         throw new Error(formatClientError(err));
     }

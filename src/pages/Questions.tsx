@@ -72,6 +72,49 @@ function difficultyBadgeVariant(difficulty: Difficulty) {
   return "success" as const;
 }
 
+type ExportMode = "full" | "lite" | "custom";
+type ExportField =
+  | "id"
+  | "topic"
+  | "content"
+  | "questionType"
+  | "difficulty"
+  | "source"
+  | "tags"
+  | "expectedPoints"
+  | "relationships"
+  | "createdAt"
+  | "contentHash";
+
+const EXPORT_FIELD_OPTIONS: Array<{ key: ExportField; label: string; hint: string }> = [
+  { key: "topic", label: "Topic", hint: "题目所属主题" },
+  { key: "content", label: "Content", hint: "题目正文" },
+  { key: "questionType", label: "Question Type", hint: "题型（Coding/Concept/…）" },
+  { key: "difficulty", label: "Difficulty", hint: "难度（Simple/Medium/Hard）" },
+  { key: "tags", label: "Tags", hint: "标签数组" },
+  { key: "source", label: "Source", hint: "来源（user-import/ai-saved）" },
+  { key: "expectedPoints", label: "Expected Points", hint: "考点提示" },
+  { key: "relationships", label: "Relationships", hint: "知识关联结构" },
+  { key: "id", label: "ID", hint: "本地唯一标识" },
+  { key: "contentHash", label: "Content Hash", hint: "去重用哈希" },
+  { key: "createdAt", label: "Created At", hint: "创建时间戳" },
+];
+
+const LITE_FIELDS: ExportField[] = ["topic", "content", "questionType", "difficulty", "tags"];
+const FULL_FIELDS: ExportField[] = [
+  "id",
+  "contentHash",
+  "topic",
+  "content",
+  "questionType",
+  "difficulty",
+  "source",
+  "tags",
+  "expectedPoints",
+  "relationships",
+  "createdAt",
+];
+
 function QuestionCard({
   item,
   viewMode,
@@ -239,6 +282,23 @@ export default function Questions() {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isCustomExportOpen, setIsCustomExportOpen] = useState(false);
+  const exportCancelRef = useRef<HTMLButtonElement | null>(null);
+
+  const [customExportFields, setCustomExportFields] = useState<Record<ExportField, boolean>>(() => {
+    const initial = {} as Record<ExportField, boolean>;
+    for (const { key } of EXPORT_FIELD_OPTIONS) initial[key] = false;
+    for (const key of LITE_FIELDS) initial[key] = true;
+    return initial;
+  });
+
+  const selectedCustomFields = useMemo(() => {
+    const keys: ExportField[] = [];
+    for (const { key } of EXPORT_FIELD_OPTIONS) {
+      if (customExportFields[key]) keys.push(key);
+    }
+    return keys;
+  }, [customExportFields]);
 
   const topicsFactory = useCallback(async () => {
     const keys = await db.questions.orderBy("topic").uniqueKeys();
@@ -332,29 +392,56 @@ export default function Questions() {
     };
   }, [isExportMenuOpen]);
 
-  const handleExportAllQuestions = useCallback(async (mode: "full" | "lite") => {
+  useEffect(() => {
+    if (!isCustomExportOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsCustomExportOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCustomExportOpen]);
+
+  useEffect(() => {
+    if (!isCustomExportOpen) return;
+    exportCancelRef.current?.focus();
+  }, [isCustomExportOpen]);
+
+  const handleExportAllQuestions = useCallback(async (mode: ExportMode, fields?: ExportField[]) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
       const questions = await db.questions.orderBy("createdAt").toArray();
       const exportedAt = new Date().toISOString();
       const stamp = exportedAt.replace(/[:.]/g, "-");
-      const filenameSuffix = mode === "full" ? "full" : "lite";
-      const exportQuestions =
-        mode === "full"
-          ? questions
-          : questions.map((q) => ({
-            topic: q.topic,
-            content: q.content,
-            questionType: q.questionType,
-            difficulty: q.difficulty,
-            tags: q.tags ?? [],
-          }));
-      const payload = {
+      const filenameSuffix = mode === "full" ? "full" : mode === "lite" ? "lite" : "custom";
+
+      const resolveFieldValue = (q: QuestionItem, field: ExportField) => {
+        if (field === "tags") return q.tags ?? [];
+        if (field === "questionType") return q.questionType ?? null;
+        if (field === "expectedPoints") return q.expectedPoints ?? [];
+        if (field === "relationships") return q.relationships ?? null;
+        return q[field];
+      };
+
+      const pickFields = (q: QuestionItem, keys: ExportField[]) => {
+        const out: Record<string, unknown> = {};
+        for (const key of keys) out[key] = resolveFieldValue(q, key);
+        return out;
+      };
+
+      const exportQuestions = (() => {
+        if (mode === "full") return questions;
+        if (mode === "lite") return questions.map((q) => pickFields(q, LITE_FIELDS));
+        const keys = fields?.length ? fields : LITE_FIELDS;
+        return questions.map((q) => pickFields(q, keys));
+      })();
+
+      const payload: Record<string, unknown> = {
         exportedAt,
         mode,
         questions: exportQuestions,
       };
+      if (mode === "custom") payload.fields = (fields?.length ? fields : LITE_FIELDS);
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
       const url = URL.createObjectURL(blob);
 
@@ -436,6 +523,24 @@ export default function Questions() {
                       </div>
                       <div className="mt-1 text-[11px] font-normal tracking-normal text-ink-light normal-case">
                         仅导出 topic / content / type / difficulty / tags
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="mt-2 w-full border-t border-ink/10 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-ink hover:bg-slate-50"
+                      onClick={() => {
+                        setIsExportMenuOpen(false);
+                        setIsCustomExportOpen(true);
+                      }}
+                      disabled={isExporting}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>自定义字段</span>
+                        <span className="text-ink-light">CUSTOM</span>
+                      </div>
+                      <div className="mt-1 text-[11px] font-normal tracking-normal text-ink-light normal-case">
+                        勾选导出字段，适合对接外部工具
                       </div>
                     </button>
                   </div>
@@ -732,6 +837,161 @@ export default function Questions() {
               >
                 <Trash2 className="h-4 w-4" />
                 Erase
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isCustomExportOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/30"
+            aria-label="Close dialog"
+            onClick={() => setIsCustomExportOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="export-title"
+            aria-describedby="export-desc"
+            className="relative w-full max-w-2xl border-sketch bg-white p-6 shadow-lg"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div id="export-title" className="font-heading text-2xl font-bold text-ink">
+                  自定义导出字段
+                </div>
+                <div id="export-desc" className="mt-2 text-sm text-ink-light">
+                  导出 JSON 文件（100% 本地）。当前为导出全部题库内容。
+                </div>
+              </div>
+              <button
+                type="button"
+                className="rounded p-1 text-ink/40 hover:text-ink"
+                onClick={() => setIsCustomExportOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-light">
+                Selected {selectedCustomFields.length} / {EXPORT_FIELD_OPTIONS.length}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-sketch bg-white text-ink hover:text-gold"
+                  onClick={() => {
+                    setCustomExportFields((prev) => {
+                      const next = { ...prev };
+                      for (const { key } of EXPORT_FIELD_OPTIONS) next[key] = true;
+                      return next;
+                    });
+                  }}
+                >
+                  全选
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-sketch bg-white text-ink hover:text-gold"
+                  onClick={() => {
+                    setCustomExportFields((prev) => {
+                      const next = { ...prev };
+                      for (const { key } of EXPORT_FIELD_OPTIONS) next[key] = false;
+                      return next;
+                    });
+                  }}
+                >
+                  全不选
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-sketch bg-white text-ink hover:text-gold"
+                  onClick={() => {
+                    setCustomExportFields((prev) => {
+                      const next = { ...prev };
+                      for (const { key } of EXPORT_FIELD_OPTIONS) next[key] = false;
+                      for (const key of LITE_FIELDS) next[key] = true;
+                      return next;
+                    });
+                  }}
+                >
+                  精简预设
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-sketch bg-white text-ink hover:text-gold"
+                  onClick={() => {
+                    setCustomExportFields((prev) => {
+                      const next = { ...prev };
+                      for (const { key } of EXPORT_FIELD_OPTIONS) next[key] = false;
+                      for (const key of FULL_FIELDS) next[key] = true;
+                      return next;
+                    });
+                  }}
+                >
+                  完整预设
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {EXPORT_FIELD_OPTIONS.map((opt) => (
+                <label
+                  key={opt.key}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded border border-ink/10 bg-white px-3 py-2 transition-colors hover:bg-slate-50",
+                    customExportFields[opt.key] && "border-ink/30 bg-highlight-yellow/30",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={customExportFields[opt.key]}
+                    onChange={() => {
+                      setCustomExportFields((prev) => ({ ...prev, [opt.key]: !prev[opt.key] }));
+                    }}
+                    className="mt-1 h-4 w-4 accent-black"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-bold uppercase tracking-[0.2em] text-ink">{opt.label}</span>
+                    <span className="block text-xs text-ink-light">{opt.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+              <Button
+                ref={exportCancelRef}
+                type="button"
+                variant="outline"
+                className="border-sketch bg-white text-ink-light hover:text-ink"
+                onClick={() => setIsCustomExportOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={isExporting || selectedCustomFields.length === 0}
+                className="bg-ink text-white hover:bg-ink/90 disabled:opacity-50"
+                onClick={async () => {
+                  setIsCustomExportOpen(false);
+                  void handleExportAllQuestions("custom", selectedCustomFields);
+                }}
+              >
+                {isExporting ? "EXPORTING..." : "Export"}
               </Button>
             </div>
           </div>

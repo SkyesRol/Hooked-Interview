@@ -7,7 +7,7 @@ import type { RawInput } from "@/components/import/types";
 import { cn } from "@/lib/utils";
 
 const DIFFICULTY_OPTIONS = ["Simple", "Medium", "Hard"] as const;
-const QUESTION_TYPE_OPTIONS = ["Code", "Theory", "SystemDesign"] as const;
+const QUESTION_TYPE_OPTIONS = ["Coding", "Concept", "Design", "Scenario"] as const;
 
 function parseTags(raw: string) {
   return raw
@@ -20,7 +20,7 @@ export default function ManualEntryForm({ onStage }: { onStage: (rawItems: RawIn
   const defaultTopic = useMemo(() => (TECH_STACKS[0]?.slug ? String(TECH_STACKS[0].slug) : ""), []);
   const [topic, setTopic] = useState(defaultTopic);
   const [difficulty, setDifficulty] = useState<(typeof DIFFICULTY_OPTIONS)[number]>("Medium");
-  const [questionType, setQuestionType] = useState<(typeof QUESTION_TYPE_OPTIONS)[number]>("Code");
+  const [questionType, setQuestionType] = useState<(typeof QUESTION_TYPE_OPTIONS)[number]>("Coding");
   const [content, setContent] = useState("");
   const [tags, setTags] = useState("");
 

@@ -1,4 +1,4 @@
-export type QuestionType = "Code" | "Theory" | "SystemDesign";
+export type QuestionType = "Coding" | "Concept" | "Design" | "Scenario";
 
 export type GenerateQuestionResponse = {
     type: QuestionType;
@@ -19,7 +19,20 @@ export type EvaluateAnswerResponse = {
     referenceAnswer: string;
 };
 
-export function buildGenerateQuestionMessages(topic: string) {
+export type FollowUpMode = "remedial" | "deepen";
+
+export type GenerateFollowUpQuestionResponse = {
+    mode: FollowUpMode;
+    focus: string;
+    question: string;
+    stopAfterThis: boolean;
+    stopReason: string;
+};
+
+export function buildGenerateQuestionMessages(
+    topic: string,
+    opts?: { difficulty?: GenerateQuestionResponse["difficulty"]; type?: GenerateQuestionResponse["type"] },
+) {
     return [
         {
             role: "system" as const,
@@ -30,10 +43,12 @@ export function buildGenerateQuestionMessages(topic: string) {
             role: "user" as const,
             content: [
                 `Goal: Generate one interview question for topic: ${topic}.`,
+                `Required difficulty: ${opts?.difficulty ?? "Any"}.`,
+                `Required type: ${opts?.type ?? "Any"}.`,
                 "Prefer Theory questions unless the topic is algorithmic.",
                 "",
                 "Output JSON schema (strict):",
-                '{ "type": "Code" | "Theory" | "SystemDesign", "difficulty": "Simple" | "Medium" | "Hard", "question": "Markdown formatted question content here." }',
+                '{ "type": "Coding" | "Concept" | "Design" | "Scenario", "difficulty": "Simple" | "Medium" | "Hard", "question": "Markdown formatted question content here." }',
                 "",
                 "Constraint: Return RAW JSON ONLY. Do NOT wrap with ```json.",
             ].join("\n"),
@@ -66,6 +81,56 @@ export function buildEvaluateAnswerMessages(args: { topic: string; question: str
                 "5. referenceAnswer: optimal solution in Markdown",
                 "",
                 "Constraint: Return RAW JSON ONLY. No extra text. No markdown formatting.",
+            ].join("\n"),
+        },
+    ];
+}
+
+export function buildGenerateFollowUpQuestionMessages(args: {
+    topic: string;
+    parentQuestion: string;
+    parentAnswer: string;
+    evaluation: EvaluateAnswerResponse;
+    mode: FollowUpMode;
+    focus: string;
+    depth: number;
+    maxDepth: number;
+}) {
+    return [
+        {
+            role: "system" as const,
+            content: "You are a senior technical interviewer. Return RAW JSON only.",
+        },
+        {
+            role: "user" as const,
+            content: [
+                "Goal: Generate ONE follow-up question based on the previous Q&A and evaluation.",
+                "",
+                `Topic: ${args.topic}`,
+                `Mode: ${args.mode}`,
+                `Focus: ${args.focus}`,
+                `Follow-up depth: ${args.depth}/${args.maxDepth}`,
+                "",
+                "Previous question (Markdown):",
+                args.parentQuestion,
+                "",
+                "Candidate answer:",
+                args.parentAnswer,
+                "",
+                "Evaluation JSON:",
+                JSON.stringify(args.evaluation),
+                "",
+                "Rules:",
+                "- Ask ONE precise follow-up question.",
+                "- If mode=remedial: target the key gap; avoid adding too much scope.",
+                "- If mode=deepen: push one level deeper with constraints or trade-offs.",
+                "- Keep it answerable within 3-6 minutes.",
+                "- Prefer Scenario/Design/Concept style unless clearly a coding follow-up.",
+                "",
+                "Output JSON schema (strict):",
+                '{ "mode": "remedial" | "deepen", "focus": "string", "question": "Markdown question", "stopAfterThis": boolean, "stopReason": "string" }',
+                "",
+                "Constraint: Return RAW JSON ONLY. No extra text. No markdown fences.",
             ].join("\n"),
         },
     ];

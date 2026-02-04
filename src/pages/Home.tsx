@@ -118,6 +118,10 @@ export default function Home() {
     [navigate],
   );
 
+  const handleStartBoss = useCallback(() => {
+    navigate("/boss/setup");
+  }, [navigate]);
+
   const handleJumpToMatrix = useCallback(() => {
     const element = document.getElementById("topic-board");
     element?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -183,6 +187,19 @@ export default function Home() {
                 className="w-full bg-ink py-2.5 text-[9px] font-bold uppercase tracking-[0.3em] text-white transition-colors hover:bg-gold hover:text-ink"
               >
                 开始练习
+              </button>
+            </div>
+
+            <div className="border-sketch bg-white p-5 transition-all duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:-translate-y-0.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ink-light">Campus 模式</span>
+              <h3 className="mt-1 font-heading text-lg font-bold">Interview Boss</h3>
+              <p className="mb-4 text-[11px] text-ink-light">按蓝图走流程：基础 → 深挖 → 算法。自动存档。</p>
+              <button
+                type="button"
+                onClick={handleStartBoss}
+                className="w-full bg-ink py-2.5 text-[9px] font-bold uppercase tracking-[0.3em] text-white transition-colors hover:bg-gold hover:text-ink"
+              >
+                开始 Boss
               </button>
             </div>
 

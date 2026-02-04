@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "@/pages/Home";
 import Interview from "@/pages/Interview";
+import InterviewBossSetup from "@/pages/InterviewBossSetup";
+import InterviewBossSession from "@/pages/InterviewBossSession";
 import History from "@/pages/History";
 import HistoryDetail from "@/pages/HistoryDetail";
 import Settings from "@/pages/Settings";
@@ -46,6 +48,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Interview />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/boss/setup"
+          element={
+            <ProtectedRoute>
+              <InterviewBossSetup />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/boss/:id"
+          element={
+            <ProtectedRoute>
+              <InterviewBossSession />
             </ProtectedRoute>
           }
         />

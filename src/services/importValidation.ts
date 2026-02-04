@@ -3,7 +3,7 @@ import type { ExistingQuestion, RawInput, StagedItem } from "@/components/import
 import { normalizeTopicSlug } from "@/constants/topics";
 
 const ALLOWED_DIFFICULTIES = ["Simple", "Medium", "Hard"] as const;
-const ALLOWED_QUESTION_TYPES = ["Code", "Theory", "SystemDesign"] as const;
+const ALLOWED_QUESTION_TYPES = ["Coding", "Concept", "Design", "Scenario"] as const;
 
 function normalizeText(value: string) {
   return value.trim().replace(/\r\n/g, "\n");
@@ -55,7 +55,7 @@ export async function validateAndCheckDuplicates(rawItems: RawInput[], existingQ
     const topic = rawTopic ? normalizeTopicSlug(rawTopic) : "";
     const content = normalizeText(raw.content);
     const difficulty = coerceDifficulty(raw.difficulty);
-    const questionType = coerceQuestionType(raw.questionType) ?? "Code";
+    const questionType = coerceQuestionType(raw.questionType) ?? "Coding";
     const tags = normalizeTags(raw.tags);
 
     if (!rawTopic) {
